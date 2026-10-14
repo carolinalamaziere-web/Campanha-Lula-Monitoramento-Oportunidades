@@ -1,0 +1,72 @@
+{
+  "versao": 4,
+  "atualizadoEm": "2026-10-14T15:21:58.538Z",
+  "atualizacaoAutomatica": "07h e 19h — horário de Brasília",
+  "indicadores": [
+    {
+      "id": "ipca",
+      "rotulo": "Inflação oficial do mês (IPCA)",
+      "valor": "0,82%",
+      "periodo": "01/09/2026",
+      "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json&dataInicial=15%2F07%2F2026&dataFinal=13%2F10%2F2026"
+    },
+    {
+      "id": "selic",
+      "rotulo": "Taxa Selic",
+      "valor": "13,75% ao ano",
+      "periodo": "13/10/2026",
+      "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json&dataInicial=15%2F07%2F2026&dataFinal=13%2F10%2F2026"
+    },
+    {
+      "id": "dolar",
+      "rotulo": "Cotação do dólar — venda",
+      "valor": "R$ 5,0090",
+      "periodo": "13/10/2026",
+      "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.10813/dados?formato=json&dataInicial=15%2F07%2F2026&dataFinal=13%2F10%2F2026"
+    }
+  ],
+  "trending": [
+    {
+      "titulo": "Economia no bolso",
+      "status": "monitorar",
+      "orientacao": "Traduzir cada indicador para exemplos do cotidiano e manter a fonte visível."
+    },
+    {
+      "titulo": "Benefícios para mulheres, crianças e MEIs",
+      "status": "em produção",
+      "orientacao": "Priorizar serviços concretos, valores, público elegível e caminho de acesso."
+    },
+    {
+      "titulo": "Checagem de fake news",
+      "status": "contínuo",
+      "orientacao": "Separar fato confirmado, alegação sem prova e conteúdo ainda em apuração."
+    }
+  ],
+  "estrategia": {
+    "prioridade": "Vídeos curtos com uma informação verificável por peça",
+    "formatos": [
+      "TikTok",
+      "Reels",
+      "Status do WhatsApp",
+      "Carrossel",
+      "Figurinha"
+    ],
+    "regraEditorial": "Linguagem popular, sem inventar números, com fonte e data de referência."
+  },
+  "historico": [
+    {
+      "atualizadoEm": "2026-10-14T02:38:31.503Z",
+      "sucesso": true,
+      "erros": []
+    },
+    {
+      "atualizadoEm": "2026-10-14T15:21:58.538Z",
+      "sucesso": false,
+      "erros": [
+        "ipca: fetch failed",
+        "selic: fetch failed",
+        "dolar: fetch failed"
+      ]
+    }
+  ]
+}

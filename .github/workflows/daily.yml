@@ -1,0 +1,39 @@
+name: Atualiza Painel Diário
+
+on:
+  schedule:
+    # GitHub usa UTC: 10h e 22h UTC correspondem a 07h e 19h em Brasília.
+    - cron: "0 10,22 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Baixar o repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Atualizar dados oficiais
+        run: node scripts/atualiza-dados.js
+
+      - name: Publicar a atualização no repositório
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dados.json
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração para publicar."
+            exit 0
+          fi
+          git commit -m "chore: atualiza dados do painel"
+          git push
