@@ -43,6 +43,42 @@
 
     painel.append(topo, rodape);
 
+    if (Array.isArray(dados.metaIA?.itens) && dados.metaIA.itens.length) {
+      const meta = criar("div", "wr-v4__meta");
+      const metaTopo = criar("div", "wr-v4__meta-topo");
+      metaTopo.append(
+        criar("strong", "", "SUGESTÕES META IA • DADOS COM FONTE"),
+        criar(
+          "span",
+          "",
+          dados.metaIA.geradoEm
+            ? `Gerado em ${new Date(dados.metaIA.geradoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
+            : dados.metaIA.modelo || "Meta Model API"
+        )
+      );
+
+      const grade = criar("div", "wr-v4__meta-grade");
+      for (const item of dados.metaIA.itens) {
+        const card = criar("article", "wr-v4__meta-card");
+        card.append(
+          criar("h3", "", item.titulo),
+          criar("p", "", item.resumoPopular),
+          criar("small", "", `Gancho: ${item.ganchoVideo}`)
+        );
+        if (item.fonte) {
+          const fonte = criar("a", "", "Consultar fonte oficial ↗");
+          fonte.href = item.fonte;
+          fonte.target = "_blank";
+          fonte.rel = "noopener noreferrer";
+          card.append(fonte);
+        }
+        grade.append(card);
+      }
+
+      meta.append(metaTopo, grade);
+      painel.append(meta);
+    }
+
     const raizLegada = document.getElementById("root");
     if (raizLegada) {
       const textos = document.createTreeWalker(raizLegada, NodeFilter.SHOW_TEXT);
@@ -85,8 +121,17 @@
     .wr-v4__atualizado{color:#a8a8ad;font:12px/1.4 ui-monospace,monospace;text-align:right}
     .wr-v4__rodape{max-width:1200px;margin:12px auto 0;display:flex;justify-content:space-between;gap:16px;color:#bcbcc2;font-size:12px}
     .wr-v4__pulso{color:#62e6b5;white-space:nowrap}
+    .wr-v4__meta{max-width:1200px;margin:18px auto 0;border-top:1px solid #2a2a2f;padding-top:16px}
+    .wr-v4__meta-topo{display:flex;justify-content:space-between;gap:16px;color:#a8a8ad;font:11px/1.4 ui-monospace,monospace}
+    .wr-v4__meta-topo strong{color:#ffd400}
+    .wr-v4__meta-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+    .wr-v4__meta-card{background:#151517;border:1px solid #2a2a2f;border-radius:14px;padding:14px}
+    .wr-v4__meta-card h3{font-size:14px;margin:0 0 8px}
+    .wr-v4__meta-card p{color:#e3e3e6;font-size:13px;line-height:1.45;margin:0 0 9px}
+    .wr-v4__meta-card small{display:block;color:#a8a8ad;font-size:11px;line-height:1.4}
+    .wr-v4__meta-card a{display:inline-block;color:#ffd400;font-size:11px;margin-top:10px;text-decoration:underline}
     .wr-v4--erro{color:#ffcc66;font-size:13px}
-    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape{align-items:flex-start;flex-direction:column}.wr-v4__atualizado{text-align:left}}
+    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__meta-topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado{text-align:left}.wr-v4__meta-grade{grid-template-columns:1fr}}
   `;
   document.head.append(estilo);
 

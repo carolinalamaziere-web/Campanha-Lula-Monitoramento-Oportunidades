@@ -8,6 +8,7 @@ Painel estático ligado a um arquivo de dados independente. O navegador recarreg
 - `dados.json`: conteúdo dinâmico e indicadores.
 - `scripts/painel-dinamico.js`: busca e renderiza os dados no navegador.
 - `scripts/atualiza-dados.js`: consulta séries oficiais do Banco Central.
+- `scripts/gera-conteudo-meta.js`: transforma fatos com fonte e data em sugestões populares usando a Meta Model API.
 - `.github/workflows/daily.yml`: rotina automática e execução manual.
 - `netlify.toml`: publicação da raiz e prevenção de cache do JSON.
 
@@ -38,5 +39,16 @@ O script consulta séries públicas do Sistema Gerenciador de Séries Temporais 
 - Dólar — venda: série 10813.
 
 Os demais conteúdos editoriais permanecem em `dados.json` para revisão humana. Não publique números ou acusações sem validar a fonte e a data de referência.
+
+## Integração com a IA da Meta
+
+O fluxo usa a Meta Model API no servidor do GitHub Actions. A chave nunca é enviada ao navegador nem gravada no repositório.
+
+1. Entre no painel da Meta Model API e crie uma API key.
+2. No GitHub, abra **Settings > Secrets and variables > Actions**.
+3. Crie um secret chamado `MODEL_API_KEY` e cole a chave.
+4. Abra **Actions > Atualiza Painel Diário > Run workflow** para testar.
+
+Quando a chave estiver configurada, a rotina envia somente itens de `dados.json` que tenham valor, data e fonte. A resposta estruturada é salva em `dados.json`, dentro de `metaIA`, com o modelo usado, horário de geração e fonte original de cada item.
 
 Para testar localmente no Windows, use `node --use-system-ca scripts/atualiza-dados.js` caso sua instalação do Node precise dos certificados do sistema.
