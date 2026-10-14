@@ -1,6 +1,6 @@
 {
   "versao": 4,
-  "atualizadoEm": "2026-10-14T15:21:58.538Z",
+  "atualizadoEm": "2026-10-14T22:26:47.786Z",
   "atualizacaoAutomatica": "07h e 19h — horário de Brasília",
   "indicadores": [
     {
@@ -8,21 +8,21 @@
       "rotulo": "Inflação oficial do mês (IPCA)",
       "valor": "0,82%",
       "periodo": "01/09/2026",
-      "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json&dataInicial=15%2F07%2F2026&dataFinal=13%2F10%2F2026"
+      "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json&dataInicial=16%2F07%2F2026&dataFinal=14%2F10%2F2026"
     },
     {
       "id": "selic",
       "rotulo": "Taxa Selic",
       "valor": "13,75% ao ano",
-      "periodo": "13/10/2026",
-      "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json&dataInicial=15%2F07%2F2026&dataFinal=13%2F10%2F2026"
+      "periodo": "14/10/2026",
+      "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json&dataInicial=16%2F07%2F2026&dataFinal=14%2F10%2F2026"
     },
     {
       "id": "dolar",
       "rotulo": "Cotação do dólar — venda",
-      "valor": "R$ 5,0090",
-      "periodo": "13/10/2026",
-      "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.10813/dados?formato=json&dataInicial=15%2F07%2F2026&dataFinal=13%2F10%2F2026"
+      "valor": "R$ 5,0435",
+      "periodo": "14/10/2026",
+      "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.10813/dados?formato=json&dataInicial=16%2F07%2F2026&dataFinal=14%2F10%2F2026"
     }
   ],
   "trending": [
@@ -67,6 +67,11 @@
         "selic: fetch failed",
         "dolar: fetch failed"
       ]
+    },
+    {
+      "atualizadoEm": "2026-10-14T22:26:47.786Z",
+      "sucesso": true,
+      "erros": []
     }
   ]
 }
