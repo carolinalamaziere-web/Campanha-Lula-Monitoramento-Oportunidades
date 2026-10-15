@@ -273,7 +273,7 @@
 
   function aprimorarAbaMonitoramento() {
     const titulo = [...document.querySelectorAll("h2")].find((elemento) =>
-      /MONITOR CANAL FORMATO/i.test(elemento.textContent || "")
+      /(MONITOR CANAL FORMATO|IMPACTO POR FORMATO DE REDE SOCIAL)/i.test(elemento.textContent || "")
     );
     if (!titulo) return;
 
