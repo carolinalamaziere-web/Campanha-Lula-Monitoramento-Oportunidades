@@ -113,51 +113,5 @@
       "sucesso": true,
       "erros": []
     }
-  ],
-  "metaIA": {
-    "status": "integrada",
-    "provedor": "Meta Model API",
-    "modelo": "muse-spark-1.3",
-    "geradoEm": "2026-10-15T00:41:33.549Z",
-    "origem": "Indicadores com fonte e data existentes em dados.json",
-    "alertaEditorial": "Cuidado para não exagerar: use apenas o valor e a data de referência de cada indicador, sem comparar com outros períodos, sem apontar causas ou consequências e sem transformar o índice em preço de alimento ou produto específico. Oriente sempre a consulta à fonte oficial.",
-    "itens": [
-      {
-        "ganchoVideo": "Olha só: a inflação oficial do mês (IPCA) foi 0,82% em 01/09/2026.",
-        "id": "ipca",
-        "resumoPopular": "A inflação oficial do mês (IPCA) foi 0,82%, com data de referência 01/09/2026.",
-        "roteiroVideo": "Oi, pessoal! Tudo bem com vocês? Trago um recado rápido e direto: a inflação oficial do mês (IPCA) foi 0,82%, com data de referência 01/09/2026. Isso mesmo: 0,82% em 01/09/2026. É somente esse o dado. Sem falar além disso. Se quiser conferir com seus próprios olhos, consulte a fonte oficial.",
-        "statusWhatsapp": "Inflação oficial do mês (IPCA): 0,82% em 01/09/2026. Consulte a fonte oficial.",
-        "titulo": "Inflação oficial do mês (IPCA)",
-        "valorOriginal": "0,82%",
-        "dataReferencia": "01/09/2026",
-        "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json&dataInicial=16%2F07%2F2026&dataFinal=14%2F10%2F2026",
-        "verificacao": "confirmado pela fonte oficial informada"
-      },
-      {
-        "ganchoVideo": "Olha só: a Taxa Selic estava em 13,75% ao ano em 14/10/2026.",
-        "id": "selic",
-        "resumoPopular": "A Taxa Selic estava em 13,75% ao ano, com data de referência 14/10/2026.",
-        "roteiroVideo": "Oi, pessoal! Tudo bem com vocês? Trago um recado rápido e direto: a Taxa Selic estava em 13,75% ao ano, com data de referência 14/10/2026. Isso mesmo: 13,75% ao ano em 14/10/2026. É somente esse o dado. Sem falar além disso. Se quiser conferir com seus próprios olhos, consulte a fonte oficial.",
-        "statusWhatsapp": "Taxa Selic: 13,75% ao ano em 14/10/2026. Consulte a fonte oficial.",
-        "titulo": "Taxa Selic",
-        "valorOriginal": "13,75% ao ano",
-        "dataReferencia": "14/10/2026",
-        "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json&dataInicial=16%2F07%2F2026&dataFinal=14%2F10%2F2026",
-        "verificacao": "confirmado pela fonte oficial informada"
-      },
-      {
-        "ganchoVideo": "Olha só: a Cotação do dólar — venda estava em R$ 5,0435 em 14/10/2026.",
-        "id": "dolar",
-        "resumoPopular": "A Cotação do dólar — venda estava em R$ 5,0435, com data de referência 14/10/2026.",
-        "roteiroVideo": "Oi, pessoal! Tudo bem com vocês? Trago um recado rápido e direto: a Cotação do dólar — venda estava em R$ 5,0435, com data de referência 14/10/2026. Isso mesmo: R$ 5,0435 em 14/10/2026. É somente esse o dado. Sem falar além disso. Se quiser conferir com seus próprios olhos, consulte a fonte oficial.",
-        "statusWhatsapp": "Cotação do dólar — venda: R$ 5,0435 em 14/10/2026. Consulte a fonte oficial.",
-        "titulo": "Cotação do dólar — venda",
-        "valorOriginal": "R$ 5,0435",
-        "dataReferencia": "14/10/2026",
-        "fonte": "https://api.bcb.gov.br/dados/serie/bcdata.sgs.10813/dados?formato=json&dataInicial=16%2F07%2F2026&dataFinal=14%2F10%2F2026",
-        "verificacao": "confirmado pela fonte oficial informada"
-      }
-    ]
-  }
+  ]
 }
