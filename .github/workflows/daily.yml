@@ -26,6 +26,7 @@ jobs:
         run: node scripts/atualiza-dados.js
 
       - name: Gerar conteúdo com a Meta Model API
+        continue-on-error: true
         shell: bash
         env:
           MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
