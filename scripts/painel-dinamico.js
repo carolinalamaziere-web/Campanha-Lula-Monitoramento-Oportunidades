@@ -139,9 +139,8 @@
 
   function montarOperacao(dados) {
     const temTrending = Array.isArray(dados.trending) && dados.trending.length;
-    const temComparativo = Array.isArray(dados.comparativo) && dados.comparativo.length;
     const pilares = Array.isArray(dados.estrategia?.pilares) ? dados.estrategia.pilares : [];
-    if (!temTrending && !temComparativo && !pilares.length && !dados.roteiro) return null;
+    if (!temTrending && !pilares.length && !dados.roteiro) return null;
 
     const secao = criar("section", "wr-v4__live");
     secao.append(criar("h2", "wr-v4__live-titulo", "WAR ROOM • ATUALIZAÇÃO AO VIVO"));
@@ -158,25 +157,6 @@
           criar("p", "", item.orientacao || "Sem orientação editorial.")
         );
         if (item.valor) card.append(criar("b", "wr-v4__live-valor", item.valor));
-        const fonte = criarLinkFonte(item.fonte);
-        if (fonte) card.append(fonte);
-        grade.append(card);
-      }
-      bloco.append(grade);
-      secao.append(bloco);
-    }
-
-    if (temComparativo) {
-      const bloco = criar("div", "wr-v4__live-bloco");
-      bloco.append(criar("h3", "", "Tabela comparativa"));
-      const grade = criar("div", "wr-v4__comparativo");
-      for (const item of dados.comparativo) {
-        const card = criar("article", "wr-v4__comparativo-card");
-        card.append(
-          criar("span", "", item.rotulo || item.titulo),
-          criar("strong", "", item.valor),
-          criar("small", "", item.observacao || item.verificacao || "")
-        );
         const fonte = criarLinkFonte(item.fonte);
         if (fonte) card.append(fonte);
         grade.append(card);
@@ -254,42 +234,6 @@
     const metaGraph = montarMetaGraph(dados);
     if (metaGraph) painel.append(metaGraph);
 
-    if (Array.isArray(dados.metaIA?.itens) && dados.metaIA.itens.length) {
-      const meta = criar("div", "wr-v4__meta");
-      const metaTopo = criar("div", "wr-v4__meta-topo");
-      metaTopo.append(
-        criar("strong", "", "SUGESTÕES META IA • DADOS COM FONTE"),
-        criar(
-          "span",
-          "",
-          dados.metaIA.geradoEm
-            ? `Gerado em ${new Date(dados.metaIA.geradoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
-            : dados.metaIA.modelo || "Meta Model API"
-        )
-      );
-
-      const grade = criar("div", "wr-v4__meta-grade");
-      for (const item of dados.metaIA.itens) {
-        const card = criar("article", "wr-v4__meta-card");
-        card.append(
-          criar("h3", "", item.titulo),
-          criar("p", "", item.resumoPopular),
-          criar("small", "", `Gancho: ${item.ganchoVideo}`)
-        );
-        if (item.fonte) {
-          const fonte = criar("a", "", "Consultar fonte oficial ↗");
-          fonte.href = item.fonte;
-          fonte.target = "_blank";
-          fonte.rel = "noopener noreferrer";
-          card.append(fonte);
-        }
-        grade.append(card);
-      }
-
-      meta.append(metaTopo, grade);
-      painel.append(meta);
-    }
-
     const raizLegada = document.getElementById("root");
     if (raizLegada) {
       const textos = document.createTreeWalker(raizLegada, NodeFilter.SHOW_TEXT);
@@ -340,9 +284,6 @@
     .wr-v4__live-card strong{font-size:13px}.wr-v4__live-card p{margin:0;color:#bdbdc3;font-size:11px;line-height:1.45}
     .wr-v4__live-status{align-self:flex-start;color:#0a0a0b;background:#62e6b5;border-radius:999px;padding:4px 7px;font:800 9px/1 ui-monospace,monospace;text-transform:uppercase}
     .wr-v4__live-valor{color:#ffd400;font-size:15px}.wr-v4__fonte{color:#ffd400;font-size:10px;text-decoration:underline}
-    .wr-v4__comparativo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-    .wr-v4__comparativo-card{display:flex;flex-direction:column;gap:6px;background:#111113;border-left:3px solid #ffd400;border-radius:8px;padding:12px}
-    .wr-v4__comparativo-card span{color:#a8a8ad;font-size:10px;text-transform:uppercase}.wr-v4__comparativo-card strong{font-size:22px}.wr-v4__comparativo-card small{color:#ffcc66;font-size:9px}
     .wr-v4__pilares{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     .wr-v4__pilar{background:linear-gradient(135deg,#201d09,#151517 55%);border:1px solid #504512;border-radius:12px;padding:14px}
     .wr-v4__pilar span{color:#ffd400;font:800 9px/1 ui-monospace,monospace}.wr-v4__pilar strong{display:block;margin-top:7px;font-size:17px}.wr-v4__pilar p{margin:7px 0 0;color:#c9c9cd;font-size:11px;line-height:1.45}
@@ -370,18 +311,9 @@
     .wr-v4__social-metrica{background:#202024;border-radius:999px;padding:5px 7px}.wr-v4__social-metrica strong{color:#f7f7f4}
     .wr-v4__social-link{display:block;margin:11px 12px 13px;color:#ffd400;font-size:11px;text-decoration:underline}
     .wr-v4__social-nota{margin:10px 0 0;color:#7f7f86;font:10px/1.5 ui-monospace,monospace}
-    .wr-v4__meta{max-width:1200px;margin:18px auto 0;border-top:1px solid #2a2a2f;padding-top:16px}
-    .wr-v4__meta-topo{display:flex;justify-content:space-between;gap:16px;color:#a8a8ad;font:11px/1.4 ui-monospace,monospace}
-    .wr-v4__meta-topo strong{color:#ffd400}
-    .wr-v4__meta-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
-    .wr-v4__meta-card{background:#151517;border:1px solid #2a2a2f;border-radius:14px;padding:14px}
-    .wr-v4__meta-card h3{font-size:14px;margin:0 0 8px}
-    .wr-v4__meta-card p{color:#e3e3e6;font-size:13px;line-height:1.45;margin:0 0 9px}
-    .wr-v4__meta-card small{display:block;color:#a8a8ad;font-size:11px;line-height:1.4}
-    .wr-v4__meta-card a{display:inline-block;color:#ffd400;font-size:11px;margin-top:10px;text-decoration:underline}
     .wr-v4--erro{color:#ffcc66;font-size:13px}
-    @media(max-width:900px){.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__comparativo{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__meta-topo,.wr-v4__social-topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__meta-grade,.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__comparativo,.wr-v4__pilares{grid-template-columns:1fr}}
+    @media(max-width:900px){.wr-v4__social-grade,.wr-v4__live-grade{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__social-topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__pilares{grid-template-columns:1fr}}
   `;
   document.head.append(estilo);
 
