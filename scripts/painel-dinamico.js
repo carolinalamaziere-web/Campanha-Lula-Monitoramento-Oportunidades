@@ -1,5 +1,7 @@
 (function () {
   const INTERVALO = 30 * 1000;
+  let dadosAtuais = null;
+  let monitoramentoAgendado = false;
 
   function texto(elemento, valor) {
     elemento.textContent = valor == null ? "—" : String(valor);
@@ -137,6 +139,187 @@
     return link;
   }
 
+  function numeroMonitor(valor) {
+    const convertido = Number(valor);
+    return Number.isFinite(convertido) ? convertido : 0;
+  }
+
+  function formatoMonitor(item) {
+    const bruto = String(item.formato || item.tipo || item.mediaType || "Outros").trim().toUpperCase();
+    const nomes = {
+      CAROUSEL_ALBUM: "Carrossel",
+      CAROUSEL: "Carrossel",
+      VIDEO: "Vídeo",
+      REEL: "Reels",
+      REELS: "Reels",
+      IMAGE: "Imagem",
+      PHOTO: "Imagem",
+      STORY: "Stories",
+      STORIES: "Stories",
+      STATUS: "Status",
+      AUDIO: "Áudio",
+      FIGURINHA: "Figurinha"
+    };
+    return nomes[bruto] || String(item.formato || item.tipo || "Outros").trim();
+  }
+
+  function ladoMonitor(item) {
+    const identidade = [item.candidato, item.publico, item.lado, item.contaNome, item.contaUsuario]
+      .filter(Boolean)
+      .join(" ")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    if (/\bbolsonaro\b/.test(identidade)) return "bolsonaro";
+    if (/\blula\b/.test(identidade)) return "lula";
+    return null;
+  }
+
+  function totaisMonitoramento(dados) {
+    const configurados = Array.isArray(dados.monitoramento?.porFormato)
+      ? dados.monitoramento.porFormato
+      : [];
+    if (configurados.length) {
+      return configurados.map((item) => ({
+        formato: item.formato || "Outros",
+        bolsonaro: {
+          conteudos: numeroMonitor(item.bolsonaro?.conteudos ?? item.bolsonaro),
+          interacoes: numeroMonitor(item.bolsonaro?.interacoes)
+        },
+        lula: {
+          conteudos: numeroMonitor(item.lula?.conteudos ?? item.lula),
+          interacoes: numeroMonitor(item.lula?.interacoes)
+        }
+      }));
+    }
+
+    const totais = new Map();
+    const itens = [...(dados.metaGraph?.itens || []), ...(dados.trending || [])];
+    for (const item of itens) {
+      const lado = ladoMonitor(item);
+      if (!lado) continue;
+      const formato = formatoMonitor(item);
+      if (!totais.has(formato)) {
+        totais.set(formato, {
+          formato,
+          bolsonaro: { conteudos: 0, interacoes: 0 },
+          lula: { conteudos: 0, interacoes: 0 }
+        });
+      }
+      const atual = totais.get(formato)[lado];
+      atual.conteudos += 1;
+      atual.interacoes += numeroMonitor(item.interacoes);
+    }
+
+    const ordem = ["Reels", "Vídeo", "Carrossel", "Stories", "Imagem", "Status", "Áudio", "Figurinha", "Outros"];
+    return [...totais.values()].sort((a, b) => {
+      const indiceA = ordem.indexOf(a.formato);
+      const indiceB = ordem.indexOf(b.formato);
+      return (indiceA < 0 ? 99 : indiceA) - (indiceB < 0 ? 99 : indiceB);
+    });
+  }
+
+  function resumoLadoMonitor(lado) {
+    const bloco = criar("div", "wr-monitor__valor");
+    bloco.append(criar("strong", "", formatarNumero(lado.conteudos)));
+    bloco.append(criar("small", "", `${formatarNumero(lado.interacoes)} interações`));
+    return bloco;
+  }
+
+  function preencherComparativoMonitor(secao, linhas, assinatura) {
+    secao.replaceChildren();
+    secao.dataset.assinatura = assinatura;
+    const titulo = criar("div", "wr-monitor__topo");
+    titulo.append(
+      criar("h3", "", "VISÃO TOTAL • BOLSONARO × LULA POR FORMATO"),
+      criar("span", "", "CONTEÚDOS / INTERAÇÕES PÚBLICAS")
+    );
+    secao.append(titulo);
+
+    if (!linhas.length) {
+      secao.append(
+        criar(
+          "p",
+          "wr-monitor__vazio",
+          "Aguardando conteúdos classificados por conta Bolsonaro/Lula na Meta Graph API."
+        )
+      );
+      return;
+    }
+
+    const tabela = criar("div", "wr-monitor__tabela");
+    const cabecalho = criar("div", "wr-monitor__linha wr-monitor__cabecalho");
+    for (const coluna of ["Formato", "Bolsonaro", "Lula", "Total"]) cabecalho.append(criar("span", "", coluna));
+    tabela.append(cabecalho);
+
+    for (const item of linhas) {
+      const linha = criar("div", "wr-monitor__linha");
+      const total = {
+        conteudos: item.bolsonaro.conteudos + item.lula.conteudos,
+        interacoes: item.bolsonaro.interacoes + item.lula.interacoes
+      };
+      linha.append(
+        criar("strong", "wr-monitor__formato", item.formato),
+        resumoLadoMonitor(item.bolsonaro),
+        resumoLadoMonitor(item.lula),
+        resumoLadoMonitor(total)
+      );
+      tabela.append(linha);
+    }
+    secao.append(tabela);
+  }
+
+  function aprimorarAbaMonitoramento() {
+    const titulo = [...document.querySelectorAll("h2")].find((elemento) =>
+      /MONITOR CANAL FORMATO/i.test(elemento.textContent || "")
+    );
+    if (!titulo) return;
+
+    const container = titulo.parentElement;
+    const tabelaLegada = container?.querySelector("table");
+    const insight = [...(container?.children || [])].find((elemento) =>
+      /INSIGHT BRANDWATCH/i.test(elemento.textContent || "")
+    );
+    if (!container || !tabelaLegada || !insight) return;
+
+    insight.classList.add("wr-monitor__insight");
+    if (titulo.nextElementSibling !== insight) titulo.after(insight);
+
+    let comparativo = document.getElementById("wr-monitor-comparativo");
+    if (!comparativo) {
+      comparativo = criar("section", "wr-monitor");
+      comparativo.id = "wr-monitor-comparativo";
+    }
+    if (insight.nextElementSibling !== comparativo) insight.after(comparativo);
+
+    const linhas = totaisMonitoramento(dadosAtuais || {});
+    const assinatura = JSON.stringify(linhas);
+    if (comparativo.dataset.assinatura !== assinatura) {
+      preencherComparativoMonitor(comparativo, linhas, assinatura);
+    }
+  }
+
+  function ocultarDestaqueLegadoFormatos() {
+    const raiz = document.getElementById("root");
+    if (!raiz) return;
+    const destaque = [...raiz.querySelectorAll("div")].find((elemento) =>
+      /^Reels 45% \+ Figurinha 25% = 70% do alcance\. Foco total\.$/i.test(
+        (elemento.textContent || "").trim()
+      )
+    );
+    if (destaque && !destaque.hidden) destaque.hidden = true;
+  }
+
+  function agendarMonitoramento() {
+    if (monitoramentoAgendado) return;
+    monitoramentoAgendado = true;
+    window.requestAnimationFrame(() => {
+      monitoramentoAgendado = false;
+      aprimorarAbaMonitoramento();
+      ocultarDestaqueLegadoFormatos();
+    });
+  }
+
   function montarOperacao(dados) {
     const temTrending = Array.isArray(dados.trending) && dados.trending.length;
     const pilares = Array.isArray(dados.estrategia?.pilares) ? dados.estrategia.pilares : [];
@@ -176,6 +359,15 @@
           criar("strong", "", pilar.titulo),
           criar("p", "", pilar.descricao)
         );
+        if (/PLATAFORMAS E FORMATOS PRIORITÁRIOS/i.test(pilar.titulo || "")) {
+          card.append(
+            criar(
+              "div",
+              "wr-v4__pilar-destaque",
+              "Reels 45% + Figurinha 25% = 70% do alcance. Foco total."
+            )
+          );
+        }
         grade.append(card);
       }
       bloco.append(grade);
@@ -260,7 +452,9 @@
     try {
       const resposta = await fetch(`./dados.json?v=${Date.now()}`, { cache: "no-store" });
       if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
-      montarPainel(await resposta.json());
+      dadosAtuais = await resposta.json();
+      montarPainel(dadosAtuais);
+      agendarMonitoramento();
     } catch (erro) {
       console.error("Falha ao carregar dados.json", erro);
       mostrarErro();
@@ -287,6 +481,7 @@
     .wr-v4__pilares{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     .wr-v4__pilar{background:linear-gradient(135deg,#201d09,#151517 55%);border:1px solid #504512;border-radius:12px;padding:14px}
     .wr-v4__pilar span{color:#ffd400;font:800 9px/1 ui-monospace,monospace}.wr-v4__pilar strong{display:block;margin-top:7px;font-size:17px}.wr-v4__pilar p{margin:7px 0 0;color:#c9c9cd;font-size:11px;line-height:1.45}
+    .wr-v4__pilar-destaque{margin-top:12px;padding:10px 12px;background:#ffd400;color:#0a0a0b;border-radius:9px;font:800 11px/1.45 ui-monospace,monospace;text-align:center}
     .wr-v4__roteiro{margin-top:16px;background:#101c18;border:1px solid #245d4a;border-radius:12px;padding:15px}
     .wr-v4__roteiro>span{color:#62e6b5;font:800 9px/1 ui-monospace,monospace;letter-spacing:.06em}.wr-v4__roteiro h3{margin:8px 0;font-size:16px}.wr-v4__roteiro p{margin:0;color:#e4eee9;font-size:13px;line-height:1.55}.wr-v4__roteiro strong,.wr-v4__roteiro small{display:block;margin-top:9px}.wr-v4__roteiro small{color:#9ca9a3;font-size:10px}
     .wr-v4__social{max-width:1200px;margin:18px auto 0;border-top:1px solid #2a2a2f;padding-top:18px}
@@ -311,11 +506,24 @@
     .wr-v4__social-metrica{background:#202024;border-radius:999px;padding:5px 7px}.wr-v4__social-metrica strong{color:#f7f7f4}
     .wr-v4__social-link{display:block;margin:11px 12px 13px;color:#ffd400;font-size:11px;text-decoration:underline}
     .wr-v4__social-nota{margin:10px 0 0;color:#7f7f86;font:10px/1.5 ui-monospace,monospace}
+    .wr-monitor__insight{margin:0 0 16px!important}
+    .wr-monitor{margin:0 0 18px;padding:16px;background:#0d0d0f;border:1px solid #303035;border-radius:14px;color:#f7f7f4}
+    .wr-monitor__topo{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:12px}
+    .wr-monitor__topo h3{margin:0;color:#f7f7f4;font:800 13px/1.25 ui-monospace,monospace;letter-spacing:.04em}
+    .wr-monitor__topo span{color:#8f8f96;font:9px/1.25 ui-monospace,monospace;letter-spacing:.05em}
+    .wr-monitor__tabela{overflow:hidden;border:1px solid #25252a;border-radius:10px}
+    .wr-monitor__linha{display:grid;grid-template-columns:minmax(110px,1.15fr) repeat(3,minmax(105px,1fr));align-items:center;gap:8px;padding:10px 12px;border-top:1px solid #25252a}
+    .wr-monitor__linha:first-child{border-top:0}.wr-monitor__cabecalho{background:#18181b;color:#929299;font:700 9px/1 ui-monospace,monospace;text-transform:uppercase}
+    .wr-monitor__formato{font-size:12px}.wr-monitor__valor strong,.wr-monitor__valor small{display:block}.wr-monitor__valor strong{font-size:15px}.wr-monitor__valor small{margin-top:2px;color:#8f8f96;font-size:9px}
+    .wr-monitor__linha .wr-monitor__valor:nth-child(2) strong{color:#ff6b6b}.wr-monitor__linha .wr-monitor__valor:nth-child(3) strong{color:#62e6b5}.wr-monitor__linha .wr-monitor__valor:nth-child(4) strong{color:#ffd400}
+    .wr-monitor__vazio{margin:0;padding:14px;border:1px dashed #38383e;border-radius:10px;color:#a8a8ad;font:11px/1.5 ui-monospace,monospace}
     .wr-v4--erro{color:#ffcc66;font-size:13px}
     @media(max-width:900px){.wr-v4__social-grade,.wr-v4__live-grade{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__social-topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__pilares{grid-template-columns:1fr}}
+    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__social-topo,.wr-monitor__topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__pilares{grid-template-columns:1fr}.wr-monitor__tabela{overflow-x:auto}.wr-monitor__linha{min-width:540px}}
   `;
   document.head.append(estilo);
+
+  new MutationObserver(agendarMonitoramento).observe(document.body, { childList: true, subtree: true });
 
   carregar();
   window.setInterval(carregar, INTERVALO);
