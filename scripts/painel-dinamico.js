@@ -354,11 +354,37 @@
     return [pontuacao, pontuacao];
   }
 
+  function campoTrending(item) {
+    const identidade = [item.campo, item.publico, item.candidato, item.lado, item.contaNome, item.contaUsuario]
+      .filter(Boolean)
+      .join(" ")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    if (/anti[-\s]?bolsonaro/.test(identidade)) return "anti-Bolsonaro";
+    if (/anti[-\s]?lula/.test(identidade)) return "anti-Lula";
+    if (/pro[-\s]?bolsonaro|bolsonarista|\bbolsonaro\b/.test(identidade)) return "pró-Bolsonaro";
+    if (/pro[-\s]?lula|lulista|\blula\b/.test(identidade)) return "pró-Lula";
+    return "monitoramento geral";
+  }
+
+  function resumirTextoTrending(valor, limite = 420) {
+    const limpo = String(valor || "")
+      .replace(/https?:\/\/\S+/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!limpo) return "Descrição editorial ainda não informada para este conteúdo.";
+    return limpo.length > limite ? `${limpo.slice(0, limite - 1).trim()}…` : limpo;
+  }
+
   function normalizarTrending(dados) {
     const combinados = [...(dados.metaGraph?.itens || []), ...(dados.trending || [])];
     const unicos = new Map();
     for (const item of combinados) {
-      const titulo = String(item.titulo || item.topic || item.legenda || item.fato || "Conteúdo sem título").trim();
+      const titulo = resumirTextoTrending(
+        item.titulo || item.topic || item.legenda || item.fato || "Conteúdo sem título",
+        120
+      );
       const plataforma = String(item.plataforma || item.rede || item.canal || "Outros").trim();
       const formato = formatoMonitor(item);
       const pontuacao = Math.max(
@@ -374,6 +400,10 @@
       unicos.set(id, {
         id,
         titulo,
+        descricao: resumirTextoTrending(
+          item.analise || item.resumoEngajamento || item.resumo || item.fato || item.orientacao || item.legenda
+        ),
+        campo: campoTrending(item),
         plataforma,
         formato,
         pontuacao,
@@ -427,6 +457,46 @@
       if (secao) preencherTrending(secao, dadosAtuais || {});
     });
     return botao;
+  }
+
+  function montarAnalisesTrending(itens) {
+    const secao = criar("section", "wr-trending__analises");
+    const grupos = new Map();
+    for (const item of itens) {
+      if (!grupos.has(item.campo)) grupos.set(item.campo, []);
+      grupos.get(item.campo).push(item);
+    }
+
+    for (const [campo, conteudos] of grupos) {
+      const grupo = criar("div", "wr-trending__grupo");
+      grupo.append(criar("h3", "", `O que mais engajou no campo ${campo}`));
+      conteudos.forEach((item, indice) => {
+        const card = criar("article", "wr-trending__analise");
+        const texto = criar("div", "wr-trending__analise-texto");
+        texto.append(
+          criar("h4", "", `${indice + 1}. ${item.formato}-${item.plataforma} “${item.titulo}”`),
+          criar(
+            "p",
+            "",
+            `Publicado em ${item.plataforma} no formato ${item.formato}. ${item.descricao}`
+          )
+        );
+        const desempenho = criar("div", "wr-trending__analise-desempenho");
+        desempenho.append(
+          criarSparkline(item.historico),
+          criar("strong", "", `${formatarCompacto(item.pontuacao)} interações/volume`),
+          criar(
+            "span",
+            item.crescimento >= 0 ? "is-up" : "is-down",
+            `${item.crescimento >= 0 ? "+" : ""}${item.crescimento.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`
+          )
+        );
+        card.append(texto, desempenho);
+        grupo.append(card);
+      });
+      secao.append(grupo);
+    }
+    return secao;
   }
 
   function preencherTrending(secao, dados) {
@@ -514,6 +584,7 @@
     });
 
     secao.append(topo, filtrosPlataforma, filtrosFormato, lista);
+    if (filtrados.length) secao.append(montarAnalisesTrending(filtrados));
     secao.dataset.assinatura = JSON.stringify({
       atualizadoEm: dados.metaGraph?.atualizadoEm || dados.atualizadoEm,
       total: todos.length,
@@ -761,6 +832,11 @@
     .wr-trending__tendencia{display:flex;align-items:center;gap:7px}.wr-trending__tendencia>span{min-width:42px;font:800 10px/1 ui-monospace,monospace;text-align:right}.wr-trending__tendencia .is-up{color:#62e6b5}.wr-trending__tendencia .is-down{color:#ff6b6b}
     .wr-trending__grafico{width:100px;height:42px}.wr-trending__grafico-base{stroke:#29292e;stroke-width:1}.wr-trending__grafico-linha{fill:none;stroke:#ff3158;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
     .wr-trending__vazio{margin:0;padding:18px;border:1px dashed #3a3a40;border-radius:12px;color:#a8a8ad;font:11px/1.5 ui-monospace,monospace}
+    .wr-trending__analises{display:grid;gap:20px;margin-top:24px;padding-top:20px;border-top:1px solid #2a2a2f}
+    .wr-trending__grupo>h3{margin:0 0 12px;color:#ffd400;font-size:16px;line-height:1.3}
+    .wr-trending__analise{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:18px;padding:15px 0;border-top:1px solid #25252a}.wr-trending__grupo>h3+.wr-trending__analise{border-top:0;padding-top:0}
+    .wr-trending__analise-texto h4{margin:0;color:#f7f7f4;font-size:13px;line-height:1.4}.wr-trending__analise-texto p{margin:7px 0 0;color:#bdbdc4;font-size:12px;line-height:1.55}
+    .wr-trending__analise-desempenho{display:grid;justify-items:end;align-content:start;gap:5px}.wr-trending__analise-desempenho .wr-trending__grafico{width:150px}.wr-trending__analise-desempenho strong{font-size:10px}.wr-trending__analise-desempenho span{font:800 10px/1 ui-monospace,monospace}.wr-trending__analise-desempenho .is-up{color:#62e6b5}.wr-trending__analise-desempenho .is-down{color:#ff6b6b}
     .wr-monitor__insight{margin:0 0 16px!important}
     .wr-monitor{margin:0 0 18px;padding:16px;background:#0d0d0f;border:1px solid #303035;border-radius:14px;color:#f7f7f4}
     .wr-monitor__topo{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -774,7 +850,7 @@
     .wr-monitor__vazio{margin:0;padding:14px;border:1px dashed #38383e;border-radius:10px;color:#a8a8ad;font:11px/1.5 ui-monospace,monospace}
     .wr-v4--erro{color:#ffcc66;font-size:13px}
     @media(max-width:900px){.wr-v4__social-grade,.wr-v4__live-grade{grid-template-columns:repeat(2,minmax(0,1fr))}.wr-trending__item{grid-template-columns:32px minmax(0,1fr) 90px}.wr-trending__tendencia{grid-column:2/-1}.wr-trending__grafico{width:130px}}
-    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__social-topo,.wr-monitor__topo,.wr-trending__topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__pilares{grid-template-columns:1fr}.wr-monitor__tabela{overflow-x:auto}.wr-monitor__linha{min-width:540px}.wr-trending{grid-column:1/-1;padding:15px}.wr-trending__item{grid-template-columns:32px minmax(0,1fr)}.wr-trending__metricas{grid-column:2}.wr-trending__tendencia{grid-column:2}.wr-trending__total{white-space:nowrap}}
+    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__social-topo,.wr-monitor__topo,.wr-trending__topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__pilares{grid-template-columns:1fr}.wr-monitor__tabela{overflow-x:auto}.wr-monitor__linha{min-width:540px}.wr-trending{grid-column:1/-1;padding:15px}.wr-trending__item{grid-template-columns:32px minmax(0,1fr)}.wr-trending__metricas{grid-column:2}.wr-trending__tendencia{grid-column:2}.wr-trending__total{white-space:nowrap}.wr-trending__analise{grid-template-columns:1fr}.wr-trending__analise-desempenho{justify-items:start}.wr-trending__analise-desempenho .wr-trending__grafico{width:min(100%,220px)}}
   `;
   document.head.append(estilo);
 

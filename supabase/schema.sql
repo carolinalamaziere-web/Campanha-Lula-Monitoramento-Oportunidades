@@ -13,6 +13,7 @@ create table if not exists public.conteudos_painel (
   interacoes bigint,
   crescimento numeric,
   publicado_em timestamptz,
+  analise text,
   orientacao text,
   updated_at timestamptz not null default now()
 );
@@ -22,6 +23,7 @@ alter table public.conteudos_painel add column if not exists volume bigint;
 alter table public.conteudos_painel add column if not exists interacoes bigint;
 alter table public.conteudos_painel add column if not exists crescimento numeric;
 alter table public.conteudos_painel add column if not exists publicado_em timestamptz;
+alter table public.conteudos_painel add column if not exists analise text;
 
 alter table public.conteudos_painel enable row level security;
 revoke all on table public.conteudos_painel from anon, authenticated;
