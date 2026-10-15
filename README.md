@@ -96,7 +96,7 @@ Por segurança editorial, a instrução proíbe inventar números, fontes, compa
 Crie uma planilha com uma aba chamada `Conteudos` e a primeira linha:
 
 ```text
-id | status | titulo | fato | valor | data_referencia | fonte | publico | formato | orientacao | atualizado_em
+id | status | titulo | fato | valor | data_referencia | fonte | publico | plataforma | formato | volume | interacoes | crescimento | publicado_em | orientacao | atualizado_em
 ```
 
 Somente linhas com `status` igual a `publicar`, `publicado`, `aprovado`, `ativo`, `sim`, `true` ou `1` entram no painel.
@@ -108,7 +108,7 @@ Depois:
 3. Em **GitHub > Settings > Secrets and variables > Actions > Variables**, crie:
    - `CONTENT_SOURCE` = `google_sheets`
    - `GOOGLE_SHEETS_ID` = trecho entre `/d/` e `/edit` na URL da planilha
-   - `GOOGLE_SHEETS_RANGE` = `Conteudos!A:K`
+   - `GOOGLE_SHEETS_RANGE` = `Conteudos!A:P`
 4. Em **Secrets**, crie `GOOGLE_SERVICE_ACCOUNT_JSON` com o JSON completo da Service Account. Também é aceito o JSON codificado em base64.
 
 O acesso é feito por `fetch` à Google Sheets API com escopo somente de leitura.
@@ -140,8 +140,13 @@ Para manter o ranking público de Facebook e Instagram, configure:
 - `META_INSTAGRAM_USERNAMES`: usuários sem `@`, separados por vírgula.
 - `META_IG_USER_ID`: ID da conta profissional autenticada para Business Discovery.
 - `META_GRAPH_API_VERSION`: por exemplo, `v26.0`.
-- `META_GRAPH_FETCH_LIMIT`: padrão `25`.
-- `META_GRAPH_TOP_LIMIT`: padrão `12`.
+- `META_GRAPH_FETCH_LIMIT`: padrão `100` por conta.
+- `META_GRAPH_TOP_LIMIT`: padrão `240`, para permitir até 20 resultados em cada filtro de plataforma/formato.
+- `META_TRENDING_DAYS`: janela móvel do ranking; padrão `7` dias.
+
+O bloco **Trending Agora** mostra no máximo 20 conteúdos por combinação de plataforma e formato. O gráfico de cada linha usa o histórico real de interações armazenado a cada execução; no primeiro ciclo ele começa como uma linha estável e ganha forma conforme novas amostras chegam.
+
+A Meta Graph API alimenta Facebook e Instagram. TikTok, YouTube, X/Twitter e WhatsApp precisam entrar pela API autorizada de cada plataforma ou pelas colunas `plataforma`, `formato`, `volume`, `interacoes` e `crescimento` do Google Sheets/Supabase; o painel não apresenta esses canais como se fossem dados da Meta.
 
 Para Páginas externas do Facebook, o aplicativo pode precisar de **Page Public Content Access**. No Instagram, Business Discovery consulta contas profissionais públicas.
 

@@ -2,6 +2,8 @@
   const INTERVALO = 30 * 1000;
   let dadosAtuais = null;
   let monitoramentoAgendado = false;
+  let filtroTrendingPlataforma = "TODOS";
+  let filtroTrendingFormato = "TODOS";
 
   function texto(elemento, valor) {
     elemento.textContent = valor == null ? "—" : String(valor);
@@ -79,7 +81,7 @@
     topo.append(titulo, criar("span", "wr-v4__social-atualizado", atualizado));
 
     const grade = criar("div", "wr-v4__social-grade");
-    for (const item of dados.metaGraph.itens) {
+    for (const item of dados.metaGraph.itens.slice(0, 12)) {
       const card = criar("article", "wr-v4__social-card");
       const cabecalho = criar("div", "wr-v4__social-card-topo");
       const conta = criar("div", "wr-v4__social-conta");
@@ -310,12 +312,249 @@
     if (destaque && !destaque.hidden) destaque.hidden = true;
   }
 
+  function numeroTrending(valor) {
+    if (typeof valor === "number") return Number.isFinite(valor) ? valor : 0;
+    const bruto = String(valor || "").trim().replace(/\s+/g, "");
+    const compacto = bruto.match(/(-?\d+(?:[.,]\d+)?)\s*([KMB])/i);
+    if (compacto) {
+      const numero = Number(compacto[1].replace(",", "."));
+      const multiplicador = { K: 1e3, M: 1e6, B: 1e9 }[compacto[2].toUpperCase()];
+      return Number.isFinite(numero) ? numero * multiplicador : 0;
+    }
+    const normalizado = bruto.includes(",")
+      ? bruto.replace(/\./g, "").replace(",", ".")
+      : bruto.replace(/[^0-9.-]/g, "");
+    const numero = Number(normalizado);
+    return Number.isFinite(numero) ? numero : 0;
+  }
+
+  function percentualTrending(valor) {
+    const encontrado = String(valor ?? "").replace(",", ".").match(/-?\d+(?:\.\d+)?/);
+    const numero = encontrado ? Number(encontrado[0]) : Number(valor);
+    return Number.isFinite(numero) ? numero : 0;
+  }
+
+  function formatarCompacto(valor) {
+    return new Intl.NumberFormat("pt-BR", {
+      notation: "compact",
+      maximumFractionDigits: 1
+    }).format(numeroTrending(valor));
+  }
+
+  function historicoTrending(item, pontuacao, crescimento) {
+    const amostras = Array.isArray(item.historico)
+      ? item.historico
+          .map((amostra) => numeroTrending(amostra?.interacoes ?? amostra?.volume ?? amostra?.valor ?? amostra))
+          .filter((valor) => Number.isFinite(valor))
+      : [];
+    if (amostras.length >= 2) return amostras;
+    if (pontuacao > 0 && crescimento !== 0 && crescimento > -100) {
+      return [pontuacao / (1 + crescimento / 100), pontuacao];
+    }
+    return [pontuacao, pontuacao];
+  }
+
+  function normalizarTrending(dados) {
+    const combinados = [...(dados.metaGraph?.itens || []), ...(dados.trending || [])];
+    const unicos = new Map();
+    for (const item of combinados) {
+      const titulo = String(item.titulo || item.topic || item.legenda || item.fato || "Conteúdo sem título").trim();
+      const plataforma = String(item.plataforma || item.rede || item.canal || "Outros").trim();
+      const formato = formatoMonitor(item);
+      const pontuacao = Math.max(
+        numeroTrending(item.interacoes),
+        numeroTrending(item.visualizacoes),
+        numeroTrending(item.views),
+        numeroTrending(item.alcance),
+        numeroTrending(item.volume),
+        numeroTrending(item.vol)
+      );
+      const crescimento = percentualTrending(item.crescimentoPercentual ?? item.crescimento ?? item.growth);
+      const id = String(item.id || item.permalink || item.fonte || `${plataforma}:${formato}:${titulo}`);
+      unicos.set(id, {
+        id,
+        titulo,
+        plataforma,
+        formato,
+        pontuacao,
+        crescimento,
+        historico: historicoTrending(item, pontuacao, crescimento),
+        publicadoEm: item.publicadoEm || item.dataReferencia || item.periodo || null,
+        url: urlHttps(item.permalink || item.fonte)
+      });
+    }
+    return [...unicos.values()].sort((a, b) => b.pontuacao - a.pontuacao || b.crescimento - a.crescimento);
+  }
+
+  function criarSparkline(pontos) {
+    const largura = 132;
+    const altura = 42;
+    const margem = 3;
+    const valores = pontos.length ? pontos : [0, 0];
+    const minimo = Math.min(...valores);
+    const maximo = Math.max(...valores);
+    const intervalo = maximo - minimo || 1;
+    const coordenadas = valores.map((valor, indice) => {
+      const x = margem + (indice * (largura - margem * 2)) / Math.max(1, valores.length - 1);
+      const y = altura - margem - ((valor - minimo) / intervalo) * (altura - margem * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", `0 0 ${largura} ${altura}`);
+    svg.setAttribute("class", "wr-trending__grafico");
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", "Curva de crescimento do conteúdo");
+    const linhaBase = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    linhaBase.setAttribute("x1", "0");
+    linhaBase.setAttribute("x2", String(largura));
+    linhaBase.setAttribute("y1", String(altura - 2));
+    linhaBase.setAttribute("y2", String(altura - 2));
+    linhaBase.setAttribute("class", "wr-trending__grafico-base");
+    const linha = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    linha.setAttribute("points", coordenadas.join(" "));
+    linha.setAttribute("class", "wr-trending__grafico-linha");
+    svg.append(linhaBase, linha);
+    return svg;
+  }
+
+  function botaoFiltroTrending(rotulo, tipo, ativo) {
+    const botao = criar("button", ativo ? "wr-trending__filtro is-active" : "wr-trending__filtro", rotulo);
+    botao.type = "button";
+    botao.addEventListener("click", () => {
+      if (tipo === "plataforma") filtroTrendingPlataforma = rotulo;
+      else filtroTrendingFormato = rotulo;
+      const secao = document.getElementById("wr-trending-dinamico");
+      if (secao) preencherTrending(secao, dadosAtuais || {});
+    });
+    return botao;
+  }
+
+  function preencherTrending(secao, dados) {
+    const todos = normalizarTrending(dados);
+    const plataformasPadrao = ["Instagram", "WhatsApp", "TikTok", "Twitter", "YouTube", "Facebook"];
+    const formatosPadrao = ["Reels", "Stories", "Feed", "Status", "Áudio", "Vídeo", "Figurinha", "Carrossel"];
+    const plataformas = [...new Set([...plataformasPadrao, ...todos.map((item) => item.plataforma).filter(Boolean)])];
+    const formatos = [...new Set([...formatosPadrao, ...todos.map((item) => item.formato).filter(Boolean)])];
+    const filtrados = todos
+      .filter((item) => filtroTrendingPlataforma === "TODOS" || item.plataforma === filtroTrendingPlataforma)
+      .filter((item) => filtroTrendingFormato === "TODOS" || item.formato === filtroTrendingFormato)
+      .slice(0, 20);
+    const volumeTotal = filtrados.reduce((total, item) => total + item.pontuacao, 0);
+
+    secao.replaceChildren();
+    const topo = criar("div", "wr-trending__topo");
+    const cabecalho = criar("div");
+    cabecalho.append(
+      criar("h2", "", "TRENDING AGORA • TOP 20 POR PLATAFORMA E FORMATO"),
+      criar(
+        "small",
+        "",
+        dados.metaGraph?.periodo?.dias
+          ? `Janela móvel: últimos ${dados.metaGraph.periodo.dias} dias`
+          : "Período ainda não informado pela fonte"
+      )
+    );
+    topo.append(cabecalho, criar("span", "wr-trending__total", `${formatarCompacto(volumeTotal)} VOL. TOTAL`));
+
+    const filtrosPlataforma = criar("div", "wr-trending__filtros");
+    for (const plataforma of ["TODOS", ...plataformas]) {
+      filtrosPlataforma.append(
+        botaoFiltroTrending(plataforma, "plataforma", filtroTrendingPlataforma === plataforma)
+      );
+    }
+    const filtrosFormato = criar("div", "wr-trending__filtros wr-trending__filtros--formato");
+    for (const formato of ["TODOS", ...formatos]) {
+      filtrosFormato.append(botaoFiltroTrending(formato, "formato", filtroTrendingFormato === formato));
+    }
+
+    const lista = criar("div", "wr-trending__lista");
+    if (!filtrados.length) {
+      lista.append(
+        criar(
+          "p",
+          "wr-trending__vazio",
+          "Nenhum conteúdo encontrado para esta combinação. A coleta mostrará até 20 itens quando houver dados."
+        )
+      );
+    }
+    filtrados.forEach((item, indice) => {
+      const linha = criar("article", "wr-trending__item");
+      linha.append(criar("span", "wr-trending__rank", indice + 1));
+      const conteudo = criar("div", "wr-trending__conteudo");
+      const titulo = item.url ? criar("a", "", item.titulo) : criar("strong", "", item.titulo);
+      if (item.url) {
+        titulo.href = item.url;
+        titulo.target = "_blank";
+        titulo.rel = "noopener noreferrer";
+      }
+      const meta = criar("div", "wr-trending__meta");
+      meta.append(
+        criar("span", "", item.plataforma),
+        criar("span", "", item.formato),
+        criar("span", "", item.publicadoEm || "data não informada")
+      );
+      conteudo.append(titulo, meta);
+
+      const metricas = criar("div", "wr-trending__metricas");
+      metricas.append(
+        criar("strong", "", formatarCompacto(item.pontuacao)),
+        criar("small", "", "volume/interações")
+      );
+      const tendencia = criar("div", "wr-trending__tendencia");
+      tendencia.append(
+        criarSparkline(item.historico),
+        criar(
+          "span",
+          item.crescimento >= 0 ? "is-up" : "is-down",
+          `${item.crescimento >= 0 ? "+" : ""}${item.crescimento.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`
+        )
+      );
+      linha.append(conteudo, metricas, tendencia);
+      lista.append(linha);
+    });
+
+    secao.append(topo, filtrosPlataforma, filtrosFormato, lista);
+    secao.dataset.assinatura = JSON.stringify({
+      atualizadoEm: dados.metaGraph?.atualizadoEm || dados.atualizadoEm,
+      total: todos.length,
+      plataforma: filtroTrendingPlataforma,
+      formato: filtroTrendingFormato
+    });
+  }
+
+  function aprimorarTrending() {
+    const raiz = document.getElementById("root");
+    const titulo = [...(raiz?.querySelectorAll("h2") || [])].find(
+      (elemento) => !elemento.closest("#wr-trending-dinamico") && /TRENDING AGORA/i.test(elemento.textContent || "")
+    );
+    if (!titulo) return;
+    const legado = titulo.parentElement?.parentElement;
+    const pai = legado?.parentElement;
+    if (!legado || !pai) return;
+    legado.hidden = true;
+
+    let secao = document.getElementById("wr-trending-dinamico");
+    if (!secao) {
+      secao = criar("section", "wr-trending");
+      secao.id = "wr-trending-dinamico";
+      pai.insertBefore(secao, legado);
+    }
+    const assinatura = JSON.stringify({
+      atualizadoEm: dadosAtuais?.metaGraph?.atualizadoEm || dadosAtuais?.atualizadoEm,
+      total: normalizarTrending(dadosAtuais || {}).length,
+      plataforma: filtroTrendingPlataforma,
+      formato: filtroTrendingFormato
+    });
+    if (secao.dataset.assinatura !== assinatura) preencherTrending(secao, dadosAtuais || {});
+  }
+
   function agendarMonitoramento() {
     if (monitoramentoAgendado) return;
     monitoramentoAgendado = true;
     window.requestAnimationFrame(() => {
       monitoramentoAgendado = false;
       aprimorarAbaMonitoramento();
+      aprimorarTrending();
       ocultarDestaqueLegadoFormatos();
     });
   }
@@ -506,6 +745,22 @@
     .wr-v4__social-metrica{background:#202024;border-radius:999px;padding:5px 7px}.wr-v4__social-metrica strong{color:#f7f7f4}
     .wr-v4__social-link{display:block;margin:11px 12px 13px;color:#ffd400;font-size:11px;text-decoration:underline}
     .wr-v4__social-nota{margin:10px 0 0;color:#7f7f86;font:10px/1.5 ui-monospace,monospace}
+    .wr-trending{grid-column:span 8/span 8;min-width:0;padding:20px;background:#131315;border:1px solid #27272c;border-radius:20px;color:#f7f7f4}
+    .wr-trending__topo{display:flex;align-items:start;justify-content:space-between;gap:16px;margin-bottom:18px}
+    .wr-trending__topo h2{margin:0;font-size:18px;line-height:1.25}.wr-trending__topo small{display:block;margin-top:6px;color:#8f8f96;font:10px/1.4 ui-monospace,monospace;text-transform:uppercase}
+    .wr-trending__total{flex:none;padding:7px 10px;background:#202024;border-radius:999px;font:700 10px/1 ui-monospace,monospace}
+    .wr-trending__filtros{display:flex;flex-wrap:wrap;gap:7px;padding-bottom:12px}.wr-trending__filtros--formato{padding-top:12px;border-top:1px solid #27272c}
+    .wr-trending__filtro{appearance:none;padding:8px 12px;background:#0a0a0b;border:1px solid #2b2b31;border-radius:999px;color:#a7a7ae;font:11px/1 ui-monospace,monospace;cursor:pointer}
+    .wr-trending__filtro:hover{border-color:#5a5a62;color:#fff}.wr-trending__filtro.is-active{background:#ffd400;border-color:#ffd400;color:#0a0a0b;font-weight:800}
+    .wr-trending__filtros--formato .wr-trending__filtro.is-active{background:#f7f7f4;border-color:#f7f7f4}
+    .wr-trending__lista{display:grid;gap:9px;margin-top:4px}.wr-trending__item{display:grid;grid-template-columns:36px minmax(0,1fr) 105px 150px;align-items:center;gap:12px;padding:12px;background:#0b0b0d;border:1px solid #25252a;border-radius:13px}
+    .wr-trending__rank{width:32px;height:32px;display:grid;place-items:center;background:#1d1d21;border-radius:50%;font:800 11px/1 ui-monospace,monospace}
+    .wr-trending__conteudo{min-width:0}.wr-trending__conteudo>a,.wr-trending__conteudo>strong{display:block;overflow:hidden;color:#f7f7f4;font-size:12px;font-weight:800;text-decoration:none;text-overflow:ellipsis;white-space:nowrap}.wr-trending__conteudo>a:hover{color:#ffd400}
+    .wr-trending__meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.wr-trending__meta span{padding:4px 6px;background:#1b1b1f;border-radius:6px;color:#9a9aa2;font:9px/1 ui-monospace,monospace}
+    .wr-trending__metricas strong,.wr-trending__metricas small{display:block}.wr-trending__metricas strong{font-size:16px}.wr-trending__metricas small{margin-top:3px;color:#86868e;font-size:8px}
+    .wr-trending__tendencia{display:flex;align-items:center;gap:7px}.wr-trending__tendencia>span{min-width:42px;font:800 10px/1 ui-monospace,monospace;text-align:right}.wr-trending__tendencia .is-up{color:#62e6b5}.wr-trending__tendencia .is-down{color:#ff6b6b}
+    .wr-trending__grafico{width:100px;height:42px}.wr-trending__grafico-base{stroke:#29292e;stroke-width:1}.wr-trending__grafico-linha{fill:none;stroke:#ff3158;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+    .wr-trending__vazio{margin:0;padding:18px;border:1px dashed #3a3a40;border-radius:12px;color:#a8a8ad;font:11px/1.5 ui-monospace,monospace}
     .wr-monitor__insight{margin:0 0 16px!important}
     .wr-monitor{margin:0 0 18px;padding:16px;background:#0d0d0f;border:1px solid #303035;border-radius:14px;color:#f7f7f4}
     .wr-monitor__topo{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -518,8 +773,8 @@
     .wr-monitor__linha .wr-monitor__valor:nth-child(2) strong{color:#ff6b6b}.wr-monitor__linha .wr-monitor__valor:nth-child(3) strong{color:#62e6b5}.wr-monitor__linha .wr-monitor__valor:nth-child(4) strong{color:#ffd400}
     .wr-monitor__vazio{margin:0;padding:14px;border:1px dashed #38383e;border-radius:10px;color:#a8a8ad;font:11px/1.5 ui-monospace,monospace}
     .wr-v4--erro{color:#ffcc66;font-size:13px}
-    @media(max-width:900px){.wr-v4__social-grade,.wr-v4__live-grade{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__social-topo,.wr-monitor__topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__pilares{grid-template-columns:1fr}.wr-monitor__tabela{overflow-x:auto}.wr-monitor__linha{min-width:540px}}
+    @media(max-width:900px){.wr-v4__social-grade,.wr-v4__live-grade{grid-template-columns:repeat(2,minmax(0,1fr))}.wr-trending__item{grid-template-columns:32px minmax(0,1fr) 90px}.wr-trending__tendencia{grid-column:2/-1}.wr-trending__grafico{width:130px}}
+    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__social-topo,.wr-monitor__topo,.wr-trending__topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__pilares{grid-template-columns:1fr}.wr-monitor__tabela{overflow-x:auto}.wr-monitor__linha{min-width:540px}.wr-trending{grid-column:1/-1;padding:15px}.wr-trending__item{grid-template-columns:32px minmax(0,1fr)}.wr-trending__metricas{grid-column:2}.wr-trending__tendencia{grid-column:2}.wr-trending__total{white-space:nowrap}}
   `;
   document.head.append(estilo);
 

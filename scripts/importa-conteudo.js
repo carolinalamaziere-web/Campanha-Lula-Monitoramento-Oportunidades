@@ -50,7 +50,12 @@ function normalizarLinhas(linhas, origem) {
       dataReferencia: primeiro(linha, ["data_referencia", "data", "periodo"]),
       fonte,
       publico: primeiro(linha, ["publico", "publico_alvo", "audiencia"]),
-      formato: primeiro(linha, ["formato", "canal", "tipo"]),
+      plataforma: primeiro(linha, ["plataforma", "rede", "canal"]),
+      formato: primeiro(linha, ["formato", "tipo_midia", "tipo"]),
+      volume: primeiro(linha, ["volume", "visualizacoes", "views", "alcance"]),
+      interacoes: primeiro(linha, ["interacoes", "engajamentos", "engagements"]),
+      crescimento: primeiro(linha, ["crescimento", "growth", "variacao_percentual"]),
+      publicadoEm: primeiro(linha, ["publicado_em", "data_publicacao", "published_at"]),
       orientacao: primeiro(linha, ["orientacao", "observacoes", "observacao", "notas"]),
       atualizadoEm: primeiro(linha, ["atualizado_em", "updated_at", "modificado_em"]),
       origem
@@ -114,7 +119,7 @@ async function tokenGoogle(conta) {
 
 async function buscarGoogleSheets() {
   const spreadsheetId = texto(process.env.GOOGLE_SHEETS_ID);
-  const intervalo = texto(process.env.GOOGLE_SHEETS_RANGE) || "Conteudos!A:K";
+  const intervalo = texto(process.env.GOOGLE_SHEETS_RANGE) || "Conteudos!A:P";
   if (!spreadsheetId) throw new Error("GOOGLE_SHEETS_ID não configurado.");
   const conta = lerContaServico(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
   const accessToken = await tokenGoogle(conta);
@@ -203,7 +208,12 @@ async function sincronizarFonteExterna(dados) {
     periodo: item.dataReferencia,
     fonte: item.fonte,
     publico: item.publico,
-    formato: item.formato
+    plataforma: item.plataforma,
+    formato: item.formato,
+    volume: item.volume,
+    interacoes: item.interacoes,
+    crescimento: item.crescimento,
+    publicadoEm: item.publicadoEm
   }));
   console.log(`Fonte ${fonte}: ${itens.length} item(ns) importado(s).`);
   return { mudou: true, fonte, itens };

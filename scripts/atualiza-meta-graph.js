@@ -4,8 +4,9 @@ const path = require("node:path");
 const raiz = path.resolve(__dirname, "..");
 const arquivoDados = path.join(raiz, "dados.json");
 const versaoApi = normalizarVersao(process.env.META_GRAPH_API_VERSION || "v26.0");
-const limiteBusca = numeroInteiro(process.env.META_GRAPH_FETCH_LIMIT, 25, 1, 100);
-const limiteRanking = numeroInteiro(process.env.META_GRAPH_TOP_LIMIT, 12, 1, 50);
+const limiteBusca = numeroInteiro(process.env.META_GRAPH_FETCH_LIMIT, 100, 1, 100);
+const limiteRanking = numeroInteiro(process.env.META_GRAPH_TOP_LIMIT, 240, 20, 1000);
+const janelaDias = numeroInteiro(process.env.META_TRENDING_DAYS, 7, 1, 90);
 const token = String(process.env.META_ACCESS_TOKEN || "").trim();
 
 function numeroInteiro(valor, padrao, minimo, maximo) {
@@ -279,21 +280,49 @@ async function executar() {
     }
   }
 
-  const itens = resultados
+  const agora = new Date();
+  const inicioJanela = new Date(agora);
+  inicioJanela.setUTCDate(inicioJanela.getUTCDate() - janelaDias);
+  const ranqueados = resultados
+    .filter((item) => {
+      const publicado = item.publicadoEm ? new Date(item.publicadoEm) : null;
+      return !publicado || Number.isNaN(publicado.getTime()) || publicado >= inicioJanela;
+    })
     .filter((item) => item.permalink)
     .sort((a, b) => b.interacoes - a.interacoes || String(b.publicadoEm).localeCompare(String(a.publicadoEm)))
     .slice(0, limiteRanking)
     .map((item, indice) => ({ ...item, posicao: indice + 1 }));
 
-  if (!itens.length && avisos.length) {
+  if (!ranqueados.length && avisos.length) {
     throw new Error(`Nenhum conteúdo foi coletado. ${avisos.join(" | ")}`);
   }
 
   const dados = JSON.parse(await fs.readFile(arquivoDados, "utf8"));
+  const anteriores = new Map((dados.metaGraph?.itens || []).map((item) => [item.id, item]));
+  const registradoEm = agora.toISOString();
+  const itens = ranqueados.map((item) => {
+    const anterior = anteriores.get(item.id);
+    const historico = Array.isArray(anterior?.historico) ? [...anterior.historico] : [];
+    historico.push({ registradoEm, interacoes: item.interacoes });
+    const amostras = historico
+      .filter((amostra) => Number.isFinite(Number(amostra.interacoes)))
+      .slice(-288);
+    const primeiro = Number(amostras[0]?.interacoes || 0);
+    const ultimo = Number(amostras[amostras.length - 1]?.interacoes || 0);
+    const crescimentoPercentual = primeiro > 0
+      ? Number((((ultimo - primeiro) / primeiro) * 100).toFixed(2))
+      : 0;
+    return { ...item, crescimentoPercentual, historico: amostras };
+  });
   dados.metaGraph = {
     status: avisos.length ? "parcial" : "integrada",
-    atualizadoEm: new Date().toISOString(),
+    atualizadoEm: registradoEm,
     apiVersion: versaoApi,
+    periodo: {
+      dias: janelaDias,
+      inicio: inicioJanela.toISOString(),
+      fim: registradoEm
+    },
     criterioRanking: "Soma das interações públicas disponíveis em cada rede",
     observacao: "A taxa usa o total atual de seguidores e não substitui alcance ou impressões privadas.",
     fontes,

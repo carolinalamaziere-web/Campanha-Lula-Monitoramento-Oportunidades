@@ -49,6 +49,7 @@ jobs:
           META_GRAPH_API_VERSION: ${{ vars.META_GRAPH_API_VERSION }}
           META_GRAPH_FETCH_LIMIT: ${{ vars.META_GRAPH_FETCH_LIMIT }}
           META_GRAPH_TOP_LIMIT: ${{ vars.META_GRAPH_TOP_LIMIT }}
+          META_TRENDING_DAYS: ${{ vars.META_TRENDING_DAYS }}
         run: node scripts/atualiza-meta-graph.js
 
       - name: Publicar dados atualizados
