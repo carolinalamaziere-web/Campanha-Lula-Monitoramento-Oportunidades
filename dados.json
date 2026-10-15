@@ -1,7 +1,7 @@
 {
   "versao": 4,
   "atualizadoEm": "2026-10-15T00:40:50.411Z",
-  "atualizacaoAutomatica": "07h e 19h — horário de Brasília",
+  "atualizacaoAutomatica": "A cada 5 minutos pelo GitHub Actions",
   "indicadores": [
     {
       "id": "ipca",
@@ -42,6 +42,29 @@
       "orientacao": "Separar fato confirmado, alegação sem prova e conteúdo ainda em apuração."
     }
   ],
+  "comparativo": [
+    {
+      "id": "lazer",
+      "rotulo": "Lazer",
+      "valor": "R$ 2.668.758",
+      "fonte": "",
+      "verificacao": "Valor informado no briefing; fonte e período ainda precisam ser vinculados antes da publicação."
+    },
+    {
+      "id": "evento",
+      "rotulo": "Evento",
+      "valor": "R$ 199.000",
+      "fonte": "",
+      "verificacao": "Valor informado no briefing; fonte e período ainda precisam ser vinculados antes da publicação."
+    },
+    {
+      "id": "valor-ipca",
+      "rotulo": "Valor corrigido pelo IPCA",
+      "valor": "R$ 32.659.369",
+      "fonte": "",
+      "verificacao": "Valor informado no briefing; metodologia, fonte e data-base ainda precisam ser vinculadas."
+    }
+  ],
   "estrategia": {
     "prioridade": "Vídeos curtos com uma informação verificável por peça",
     "formatos": [
@@ -50,6 +73,18 @@
       "Status do WhatsApp",
       "Carrossel",
       "Figurinha"
+    ],
+    "pilares": [
+      {
+        "selo": "PILAR 01",
+        "titulo": "FIM DAS BETS",
+        "descricao": "Organizar fatos verificáveis, impacto social, proposta e fonte pública antes de transformar o tema em conteúdo."
+      },
+      {
+        "selo": "PILAR 02",
+        "titulo": "EXÉRCITO 4M ZAP",
+        "descricao": "Distribuição coordenada de peças curtas para WhatsApp, com mensagem rastreável, fonte visível e revisão editorial."
+      }
     ],
     "regraEditorial": "Linguagem popular, sem inventar números, com fonte e data de referência."
   },

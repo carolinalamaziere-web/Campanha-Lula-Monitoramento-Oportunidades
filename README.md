@@ -1,87 +1,172 @@
-# War Room Lula 2026 — Painel v4
+# War Room Lula 2026 — painel automático ao vivo
 
-Painel estático ligado a um arquivo de dados independente. O navegador recarrega `dados.json` a cada cinco minutos e o GitHub Actions atualiza indicadores oficiais às 07h e 19h, no horário de Brasília.
+Painel estático de oito abas publicado pelo Netlify a partir do GitHub. O conteúdo dinâmico fica em `dados.json`; o navegador consulta esse arquivo a cada 30 segundos sem recarregar a página.
 
-## Estrutura
+## Fluxo
 
-- `index.html`: painel publicado.
-- `dados.json`: conteúdo dinâmico e indicadores.
-- `scripts/painel-dinamico.js`: busca e renderiza os dados no navegador.
-- `scripts/atualiza-dados.js`: consulta séries oficiais do Banco Central.
-- `scripts/atualiza-meta-graph.js`: busca publicações públicas e monta o ranking de engajamento da Meta Graph API.
-- `scripts/gera-conteudo-meta.js`: transforma fatos com fonte e data em sugestões populares usando a Meta Model API.
-- `.github/workflows/daily.yml`: rotina automática e execução manual.
-- `netlify.toml`: publicação da raiz e prevenção de cache do JSON.
+```text
+Google Sheets ou Supabase
+        ↓
+GitHub Actions a cada 5 minutos
+        ↓
+Banco Central + OpenAI + Meta Graph API opcional
+        ↓
+commit de dados.json + Build Hook
+        ↓
+deploy conectado ao Git no Netlify
+        ↓
+site consulta dados.json a cada 30 segundos
+```
 
-## Publicar no GitHub
+O GitHub Actions aceita cinco minutos como menor intervalo de agendamento. Execuções agendadas podem sofrer atraso de fila. A API da OpenAI só é chamada quando o conteúdo de `trending` muda, evitando uma cobrança a cada execução.
 
-1. Crie um repositório chamado `war-room-lula-2026`.
-2. Envie **o conteúdo desta pasta**, não o arquivo ZIP fechado.
-3. Confirme que a aba **Actions** está habilitada.
-4. Em **Actions > Atualiza Painel Diário**, use **Run workflow** para o primeiro teste.
+## Arquivos principais
 
-## Ligar ao site existente do Netlify
+- `index.html`: painel completo com as oito abas.
+- `dados.json`: indicadores, trending, comparativo, estratégia, roteiro e conteúdo social.
+- `scripts/painel-dinamico.js`: polling de 30 segundos e renderização dos blocos ao vivo.
+- `scripts/atualiza-dados.js`: Banco Central, fonte externa e roteiro de 28 segundos via OpenAI.
+- `scripts/importa-conteudo.js`: adaptadores para Google Sheets e Supabase.
+- `scripts/atualiza-meta-graph.js`: ranking público de Facebook e Instagram.
+- `.github/workflows/daily.yml`: automação executada a cada cinco minutos.
+- `supabase/schema.sql`: tabela opcional para a fonte editorial.
+- `scripts/supabase-realtime-exemplo.js`: exemplo opcional de canal Realtime no navegador.
+- `netlify.toml`: publicação da raiz e `dados.json` sem cache.
 
-1. Abra o projeto `coruscating-tulumba-757d4e`.
-2. Acesse **Project configuration > Build & deploy > Continuous deployment**.
-3. Escolha **Link repository** e selecione `war-room-lula-2026`.
-4. Build command: vazio.
-5. Publish directory: `.`.
-6. Faça o primeiro deploy e confirme que o domínio continua sendo `coruscating-tulumba-757d4e.netlify.app`.
+## 1. Enviar ao GitHub
 
-Não é necessário criar `NETLIFY_HOOK`: o commit feito pelo GitHub Actions já aciona o deploy do Netlify quando o repositório está ligado.
+Repositório:
 
-## Fontes automáticas
+`https://github.com/carolinalamaziere-web/Campanha-Lula-Monitoramento-Oportunidades`
 
-O script consulta séries públicas do Sistema Gerenciador de Séries Temporais do Banco Central:
+O projeto já pode ser enviado por Git. Se usar o ZIP entregue, descompacte-o primeiro e envie os arquivos e pastas internos por **Add file > Upload files**. O GitHub não descompacta um ZIP enviado como arquivo.
 
-- IPCA mensal: série 433.
-- Selic: série 432.
-- Dólar — venda: série 10813.
+Confirme que `index.html`, `dados.json`, `scripts/`, `.github/`, `supabase/` e `netlify.toml` ficaram na raiz do repositório.
 
-Os demais conteúdos editoriais permanecem em `dados.json` para revisão humana. Não publique números ou acusações sem validar a fonte e a data de referência.
+## 2. Criar os secrets do GitHub
 
-## Integração com a Meta Graph API
+Abra **Settings > Secrets and variables > Actions > New repository secret**.
 
-O painel pode exibir automaticamente imagens, Reels e vídeos públicos de Páginas do Facebook e contas profissionais do Instagram. A coleta ocorre no GitHub Actions; o token nunca é enviado ao navegador nem salvo em `dados.json`.
+### Obrigatórios
 
-### 1. Credencial
+- `GH_TOKEN`: fine-grained personal access token com acesso somente a este repositório e permissão **Contents: Read and write**.
+- `NETLIFY_HOOK`: endereço completo do Build Hook criado no Netlify.
+- `OPENAI_API_KEY`: chave de projeto da OpenAI. O script usa exatamente `gpt-4o-mini` no endpoint `/v1/chat/completions`.
 
-No GitHub, abra **Settings > Secrets and variables > Actions > Secrets** e crie:
+Nunca coloque essas chaves em `dados.json`, `index.html`, arquivos `.env` versionados ou variáveis públicas do Netlify.
 
-- `META_ACCESS_TOKEN`: token válido da Meta Graph API.
+### Criar o PAT `GH_TOKEN`
 
-Use um token com as permissões adequadas ao caso, normalmente `pages_show_list`, `pages_read_engagement` e `instagram_basic`. Para Páginas que você não administra, o aplicativo precisa da aprovação **Page Public Content Access**. O Instagram Business Discovery exige uma conta profissional autenticada e só consulta contas profissionais públicas.
+1. No GitHub, abra **Settings > Developer settings > Personal access tokens > Fine-grained tokens**.
+2. Escolha somente o repositório `Campanha-Lula-Monitoramento-Oportunidades`.
+3. Em **Repository permissions**, conceda **Contents: Read and write**.
+4. Gere o token e salve-o como secret `GH_TOKEN`.
 
-### 2. Fontes monitoradas
+## 3. Conectar o Netlify ao GitHub — não usar Drop
 
-Em **Settings > Secrets and variables > Actions > Variables**, crie:
+No site `coruscating-tulumba-757d4e`:
 
-- `META_FACEBOOK_PAGE_IDS`: IDs ou nomes de usuário das Páginas, separados por vírgula.
-- `META_INSTAGRAM_USERNAMES`: usuários públicos do Instagram, sem `@`, separados por vírgula.
-- `META_IG_USER_ID`: ID da conta profissional autenticada usada para o Instagram Business Discovery.
+1. Abra **Site configuration > Build & deploy > Continuous deployment**.
+2. Selecione **Link repository**.
+3. Autorize o GitHub e escolha `carolinalamaziere-web/Campanha-Lula-Monitoramento-Oportunidades`.
+4. Deixe **Build command** vazio.
+5. Defina **Publish directory** como `.`.
+6. Salve e faça um deploy.
 
-Variáveis opcionais:
+Para criar o hook:
 
-- `META_GRAPH_API_VERSION`: versão da Graph API, no formato `v26.0`. Se omitida, o script usa `v26.0`.
-- `META_GRAPH_FETCH_LIMIT`: publicações consultadas por conta, de 1 a 100. Padrão: `25`.
-- `META_GRAPH_TOP_LIMIT`: conteúdos mantidos no ranking combinado, de 1 a 50. Padrão: `12`.
+1. Abra **Site configuration > Build & deploy > Build hooks**.
+2. Crie um hook chamado `Atualiza Painel` para a branch `main`.
+3. Copie a URL e salve-a no GitHub como secret `NETLIFY_HOOK`.
 
-Depois de configurar, abra **Actions > Atualiza Painel Diário > Run workflow**. O resultado é salvo em `dados.json`, no objeto `metaGraph`, e publicado no painel. Uma falha da Meta não apaga o último ranking válido e não interrompe a atualização dos demais indicadores.
+Um push em um site conectado ao Git já aciona o deploy normalmente. O workflow também chama o Build Hook, como fallback explícito solicitado; se o Netlify produzir dois deploys por alteração, remova o passo `Acionar deploy do Netlify` ou deixe `NETLIFY_HOOK` vazio.
 
-Para testar localmente, defina as mesmas variáveis no terminal e execute `node scripts/atualiza-meta-graph.js`. Não salve o token em arquivos versionados; arquivos `.env` estão bloqueados pelo `.gitignore`.
+## 4. OpenAI — roteiro automático de 28 segundos
 
-O ranking soma somente interações públicas retornadas pela plataforma: reações, comentários e compartilhamentos no Facebook; curtidas e comentários no Instagram. Alcance, impressões, salvamentos, retenção e outras métricas privadas não ficam disponíveis para contas externas.
+`scripts/atualiza-dados.js` envia `trending` para:
 
-## Integração com a IA da Meta
+`POST https://api.openai.com/v1/chat/completions`
 
-O fluxo usa a Meta Model API no servidor do GitHub Actions. A chave nunca é enviada ao navegador nem gravada no repositório.
+O modelo configurado é `gpt-4o-mini`, com saída JSON estruturada. O resultado é salvo em `dados.json.roteiro` com título, texto, chamada final, alerta editorial, horário e assinatura da entrada.
 
-1. Entre no painel da Meta Model API e crie uma API key.
-2. No GitHub, abra **Settings > Secrets and variables > Actions**.
-3. Crie um secret chamado `MODEL_API_KEY` e cole a chave.
-4. Abra **Actions > Atualiza Painel Diário > Run workflow** para testar.
+Por segurança editorial, a instrução proíbe inventar números, fontes, comparações, causas, promessas e acusações. Dados sem fonte ou data devem gerar um alerta. A chave fica apenas no GitHub Actions.
 
-Quando a chave estiver configurada, a rotina envia somente itens de `dados.json` que tenham valor, data e fonte. A resposta estruturada é salva em `dados.json`, dentro de `metaIA`, com o modelo usado, horário de geração e fonte original de cada item.
+## 5. Opção A — Google Sheets
 
-Para testar localmente no Windows, use `node --use-system-ca scripts/atualiza-dados.js` caso sua instalação do Node precise dos certificados do sistema.
+Crie uma planilha com uma aba chamada `Conteudos` e a primeira linha:
+
+```text
+id | status | titulo | fato | valor | data_referencia | fonte | publico | formato | orientacao | atualizado_em
+```
+
+Somente linhas com `status` igual a `publicar`, `publicado`, `aprovado`, `ativo`, `sim`, `true` ou `1` entram no painel.
+
+Depois:
+
+1. Crie uma Service Account no Google Cloud e ative a Google Sheets API.
+2. Compartilhe a planilha com o e-mail `client_email` da Service Account como leitor.
+3. Em **GitHub > Settings > Secrets and variables > Actions > Variables**, crie:
+   - `CONTENT_SOURCE` = `google_sheets`
+   - `GOOGLE_SHEETS_ID` = trecho entre `/d/` e `/edit` na URL da planilha
+   - `GOOGLE_SHEETS_RANGE` = `Conteudos!A:K`
+4. Em **Secrets**, crie `GOOGLE_SERVICE_ACCOUNT_JSON` com o JSON completo da Service Account. Também é aceito o JSON codificado em base64.
+
+O acesso é feito por `fetch` à Google Sheets API com escopo somente de leitura.
+
+## 6. Opção B — Supabase
+
+1. Abra o SQL Editor do Supabase.
+2. Execute `supabase/schema.sql`.
+3. Cadastre as linhas em `public.conteudos_painel`, usando `status = publicar` para o que deve entrar no site.
+4. Em **GitHub > Settings > Secrets and variables > Actions > Variables**, crie:
+   - `CONTENT_SOURCE` = `supabase`
+   - `SUPABASE_URL` = URL do projeto
+   - `SUPABASE_TABLE` = `conteudos_painel`
+5. Em **Secrets**, crie `SUPABASE_SECRET_KEY` com uma chave secreta de servidor.
+
+A chave secreta do Supabase ignora RLS e nunca pode ir para o navegador. O arquivo `scripts/supabase-realtime-exemplo.js` mostra um canal Realtime opcional usando apenas uma chave pública/publishable; ele não é necessário para o fluxo via `dados.json`.
+
+## 7. Meta Graph API opcional
+
+Para manter o ranking público de Facebook e Instagram, configure:
+
+### Secrets
+
+- `META_ACCESS_TOKEN`
+
+### Variables
+
+- `META_FACEBOOK_PAGE_IDS`: IDs ou nomes de usuário separados por vírgula.
+- `META_INSTAGRAM_USERNAMES`: usuários sem `@`, separados por vírgula.
+- `META_IG_USER_ID`: ID da conta profissional autenticada para Business Discovery.
+- `META_GRAPH_API_VERSION`: por exemplo, `v26.0`.
+- `META_GRAPH_FETCH_LIMIT`: padrão `25`.
+- `META_GRAPH_TOP_LIMIT`: padrão `12`.
+
+Para Páginas externas do Facebook, o aplicativo pode precisar de **Page Public Content Access**. No Instagram, Business Discovery consulta contas profissionais públicas.
+
+## 8. Ativar e testar
+
+1. Abra a aba **Actions** do repositório.
+2. Escolha **Atualiza Painel ao Vivo**.
+3. Clique em **Run workflow**.
+4. Confirme que o job criou um commit somente quando os dados mudaram.
+5. Confira o deploy no Netlify.
+6. Abra `https://coruscating-tulumba-757d4e.netlify.app/` e mantenha a página aberta; o navegador consulta `dados.json` a cada 30 segundos.
+
+Teste local no PowerShell:
+
+```powershell
+$env:OPENAI_API_KEY="sua-chave"
+node scripts/atualiza-dados.js
+```
+
+Sem as credenciais opcionais de Google Sheets, Supabase ou Meta, o script mantém os dados já existentes. Sem `OPENAI_API_KEY`, atualiza as demais fontes e preserva o último roteiro válido.
+
+## Observações operacionais
+
+- O site não precisa de framework nem comando de build.
+- Como `dados.json` faz parte do deploy estático, uma mudança ainda precisa ser publicada pelo Netlify; o polling evita que o visitante recarregue a página manualmente.
+- A rotina evita commits e chamadas à OpenAI quando nada mudou.
+- Workflows agendados de repositórios públicos podem ser desativados pelo GitHub após longo período sem atividade.
+- Os valores comparativos fornecidos no briefing estão marcados como pendentes de fonte e data-base no `dados.json`.

@@ -1,8 +1,11 @@
+const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { sincronizarFonteExterna } = require("./importa-conteudo.js");
 
 const raiz = path.resolve(__dirname, "..");
 const arquivo = path.join(raiz, "dados.json");
+const modeloOpenAI = "gpt-4o-mini";
 
 const series = {
   ipca: {
@@ -18,6 +21,10 @@ const series = {
     formatar: (valor) => `R$ ${valor}`
   }
 };
+
+function assinatura(valor) {
+  return crypto.createHash("sha256").update(JSON.stringify(valor)).digest("hex");
+}
 
 async function buscar(url) {
   const partesHoje = new Intl.DateTimeFormat("en-CA", {
@@ -59,36 +66,150 @@ async function buscar(url) {
   }
 }
 
-async function executar() {
-  const dados = JSON.parse(await fs.readFile(arquivo, "utf8"));
-  const erros = [];
+function esquemaRoteiro() {
+  return {
+    type: "json_schema",
+    json_schema: {
+      name: "roteiro_zap_28s",
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          titulo: { type: "string" },
+          texto: { type: "string" },
+          chamadaFinal: { type: "string" },
+          alertaEditorial: { type: "string" }
+        },
+        required: ["titulo", "texto", "chamadaFinal", "alertaEditorial"]
+      }
+    }
+  };
+}
 
+async function gerarComChatGPT(trending) {
+  const chave = String(process.env.OPENAI_API_KEY || "").trim();
+  if (!chave) return null;
+
+  const controle = new AbortController();
+  const limite = setTimeout(() => controle.abort(), 90000);
+  try {
+    const resposta = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${chave}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: modeloOpenAI,
+        messages: [
+          {
+            role: "developer",
+            content: [
+              "Você escreve um roteiro para áudio de WhatsApp em português do Brasil.",
+              "Use somente os dados fornecidos. Não invente números, fontes, comparações, causas, promessas ou acusações.",
+              "O texto falado deve ter aproximadamente 28 segundos, entre 58 e 72 palavras.",
+              "Se algum dado estiver sem fonte ou data, registre a limitação no alerta editorial.",
+              "Tom popular, direto e respeitoso. Termine convidando a pessoa a conferir a fonte."
+            ].join(" ")
+          },
+          {
+            role: "user",
+            content: `Crie um roteiro a partir destes assuntos em monitoramento:\n${JSON.stringify(trending)}`
+          }
+        ],
+        response_format: esquemaRoteiro()
+      }),
+      signal: controle.signal
+    });
+    const corpo = await resposta.json().catch(() => null);
+    if (!resposta.ok) throw new Error(corpo?.error?.message || `HTTP ${resposta.status}`);
+    const conteudo = corpo?.choices?.[0]?.message?.content;
+    if (!conteudo) throw new Error("A OpenAI retornou resposta sem conteúdo.");
+    return { ...JSON.parse(conteudo), responseId: corpo.id || null };
+  } finally {
+    clearTimeout(limite);
+  }
+}
+
+async function atualizarIndicadores(dados, erros) {
+  let mudou = false;
   for (const indicador of dados.indicadores || []) {
     const serie = series[indicador.id];
     if (!serie) continue;
     try {
       const { registro, fonte } = await buscar(serie.url);
-      indicador.valor = serie.formatar(String(registro.valor).replace(".", ","));
-      indicador.periodo = registro.data;
-      indicador.fonte = fonte;
+      const valor = serie.formatar(String(registro.valor).replace(".", ","));
+      if (indicador.valor !== valor || indicador.periodo !== registro.data || indicador.fonte !== fonte) {
+        indicador.valor = valor;
+        indicador.periodo = registro.data;
+        indicador.fonte = fonte;
+        mudou = true;
+      }
     } catch (erro) {
       erros.push(`${indicador.id}: ${erro.message}`);
     }
   }
+  return mudou;
+}
 
-  const agora = new Date();
-  dados.atualizadoEm = agora.toISOString();
+async function executar() {
+  const dados = JSON.parse(await fs.readFile(arquivo, "utf8"));
+  const erros = [];
+  let mudou = await atualizarIndicadores(dados, erros);
+
+  try {
+    const fonte = await sincronizarFonteExterna(dados);
+    mudou = mudou || fonte.mudou;
+  } catch (erro) {
+    erros.push(`fonte externa: ${erro.message}`);
+  }
+
+  const assinaturaTrending = assinatura(dados.trending || []);
+  if (process.env.OPENAI_API_KEY && dados.roteiro?.assinaturaEntrada !== assinaturaTrending) {
+    try {
+      const gerado = await gerarComChatGPT(dados.trending || []);
+      if (gerado) {
+        dados.roteiro = {
+          status: "gerado",
+          modelo: modeloOpenAI,
+          duracaoSegundos: 28,
+          geradoEm: new Date().toISOString(),
+          assinaturaEntrada: assinaturaTrending,
+          ...gerado
+        };
+        mudou = true;
+      }
+    } catch (erro) {
+      erros.push(`OpenAI: ${erro.message}`);
+    }
+  } else if (!process.env.OPENAI_API_KEY) {
+    console.log("OPENAI_API_KEY não configurada; roteiro automático ignorado.");
+  } else {
+    console.log("OpenAI: dados sem mudança; nova chamada evitada.");
+  }
+
+  if (!mudou) {
+    if (erros.length) console.warn("Atualização sem alterações:", erros.join(" | "));
+    else console.log("Nenhuma alteração detectada em dados.json.");
+    return;
+  }
+
+  dados.atualizadoEm = new Date().toISOString();
   dados.historico = [
     ...(dados.historico || []),
     { atualizadoEm: dados.atualizadoEm, sucesso: erros.length === 0, erros }
   ].slice(-30);
-
   await fs.writeFile(arquivo, `${JSON.stringify(dados, null, 2)}\n`, "utf8");
   if (erros.length) console.warn("Atualização parcial:", erros.join(" | "));
   console.log(`dados.json atualizado em ${dados.atualizadoEm}`);
 }
 
-executar().catch((erro) => {
-  console.error(erro);
-  process.exitCode = 1;
-});
+module.exports = { gerarComChatGPT };
+
+if (require.main === module) {
+  executar().catch((erro) => {
+    console.error(erro);
+    process.exitCode = 1;
+  });
+}

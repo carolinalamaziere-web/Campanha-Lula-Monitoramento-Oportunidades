@@ -1,5 +1,5 @@
 (function () {
-  const INTERVALO = 5 * 60 * 1000;
+  const INTERVALO = 30 * 1000;
 
   function texto(elemento, valor) {
     elemento.textContent = valor == null ? "—" : String(valor);
@@ -127,6 +127,96 @@
     return secao;
   }
 
+  function criarLinkFonte(valor) {
+    const url = urlHttps(valor);
+    if (!url) return null;
+    const link = criar("a", "wr-v4__fonte", "Fonte ↗");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    return link;
+  }
+
+  function montarOperacao(dados) {
+    const temTrending = Array.isArray(dados.trending) && dados.trending.length;
+    const temComparativo = Array.isArray(dados.comparativo) && dados.comparativo.length;
+    const pilares = Array.isArray(dados.estrategia?.pilares) ? dados.estrategia.pilares : [];
+    if (!temTrending && !temComparativo && !pilares.length && !dados.roteiro) return null;
+
+    const secao = criar("section", "wr-v4__live");
+    secao.append(criar("h2", "wr-v4__live-titulo", "WAR ROOM • ATUALIZAÇÃO AO VIVO"));
+
+    if (temTrending) {
+      const bloco = criar("div", "wr-v4__live-bloco");
+      bloco.append(criar("h3", "", "Trending e prioridades"));
+      const grade = criar("div", "wr-v4__live-grade");
+      for (const item of dados.trending) {
+        const card = criar("article", "wr-v4__live-card");
+        card.append(
+          criar("span", "wr-v4__live-status", item.status || "monitorar"),
+          criar("strong", "", item.titulo || "Tema sem título"),
+          criar("p", "", item.orientacao || "Sem orientação editorial.")
+        );
+        if (item.valor) card.append(criar("b", "wr-v4__live-valor", item.valor));
+        const fonte = criarLinkFonte(item.fonte);
+        if (fonte) card.append(fonte);
+        grade.append(card);
+      }
+      bloco.append(grade);
+      secao.append(bloco);
+    }
+
+    if (temComparativo) {
+      const bloco = criar("div", "wr-v4__live-bloco");
+      bloco.append(criar("h3", "", "Tabela comparativa"));
+      const grade = criar("div", "wr-v4__comparativo");
+      for (const item of dados.comparativo) {
+        const card = criar("article", "wr-v4__comparativo-card");
+        card.append(
+          criar("span", "", item.rotulo || item.titulo),
+          criar("strong", "", item.valor),
+          criar("small", "", item.observacao || item.verificacao || "")
+        );
+        const fonte = criarLinkFonte(item.fonte);
+        if (fonte) card.append(fonte);
+        grade.append(card);
+      }
+      bloco.append(grade);
+      secao.append(bloco);
+    }
+
+    if (pilares.length) {
+      const bloco = criar("div", "wr-v4__live-bloco");
+      bloco.append(criar("h3", "", "Pilares da estratégia"));
+      const grade = criar("div", "wr-v4__pilares");
+      for (const pilar of pilares) {
+        const card = criar("article", "wr-v4__pilar");
+        card.append(
+          criar("span", "", pilar.selo || "PILAR"),
+          criar("strong", "", pilar.titulo),
+          criar("p", "", pilar.descricao)
+        );
+        grade.append(card);
+      }
+      bloco.append(grade);
+      secao.append(bloco);
+    }
+
+    if (dados.roteiro?.texto) {
+      const roteiro = criar("article", "wr-v4__roteiro");
+      roteiro.append(
+        criar("span", "", `ROTEIRO ZAP • ${dados.roteiro.duracaoSegundos || 28}s • ${dados.roteiro.modelo || "OpenAI"}`),
+        criar("h3", "", dados.roteiro.titulo || "Roteiro automático"),
+        criar("p", "", dados.roteiro.texto),
+        criar("strong", "", dados.roteiro.chamadaFinal || ""),
+        criar("small", "", dados.roteiro.alertaEditorial || "")
+      );
+      secao.append(roteiro);
+    }
+
+    return secao;
+  }
+
   function montarPainel(dados) {
     let painel = document.getElementById("war-room-dados-v4");
     if (!painel) {
@@ -154,9 +244,12 @@
 
     const rodape = criar("div", "wr-v4__rodape");
     rodape.append(criar("span", "", dados.estrategia?.prioridade || "Uma informação verificável por peça."));
-    rodape.append(criar("span", "wr-v4__pulso", "Atualiza a cada 5 min"));
+    rodape.append(criar("span", "wr-v4__pulso", "Consulta dados a cada 30s"));
 
     painel.append(topo, rodape);
+
+    const operacao = montarOperacao(dados);
+    if (operacao) painel.append(operacao);
 
     const metaGraph = montarMetaGraph(dados);
     if (metaGraph) painel.append(metaGraph);
@@ -239,6 +332,22 @@
     .wr-v4__atualizado{color:#a8a8ad;font:12px/1.4 ui-monospace,monospace;text-align:right}
     .wr-v4__rodape{max-width:1200px;margin:12px auto 0;display:flex;justify-content:space-between;gap:16px;color:#bcbcc2;font-size:12px}
     .wr-v4__pulso{color:#62e6b5;white-space:nowrap}
+    .wr-v4__live{max-width:1200px;margin:18px auto 0;border-top:1px solid #2a2a2f;padding-top:18px}
+    .wr-v4__live-titulo{margin:0 0 16px;color:#ffd400;font:800 13px/1 ui-monospace,monospace;letter-spacing:.06em}
+    .wr-v4__live-bloco{margin-top:16px}.wr-v4__live-bloco>h3{margin:0 0 9px;color:#a8a8ad;font:700 11px/1 ui-monospace,monospace;text-transform:uppercase;letter-spacing:.06em}
+    .wr-v4__live-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .wr-v4__live-card{display:flex;flex-direction:column;gap:7px;background:#151517;border:1px solid #2a2a2f;border-radius:12px;padding:12px}
+    .wr-v4__live-card strong{font-size:13px}.wr-v4__live-card p{margin:0;color:#bdbdc3;font-size:11px;line-height:1.45}
+    .wr-v4__live-status{align-self:flex-start;color:#0a0a0b;background:#62e6b5;border-radius:999px;padding:4px 7px;font:800 9px/1 ui-monospace,monospace;text-transform:uppercase}
+    .wr-v4__live-valor{color:#ffd400;font-size:15px}.wr-v4__fonte{color:#ffd400;font-size:10px;text-decoration:underline}
+    .wr-v4__comparativo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .wr-v4__comparativo-card{display:flex;flex-direction:column;gap:6px;background:#111113;border-left:3px solid #ffd400;border-radius:8px;padding:12px}
+    .wr-v4__comparativo-card span{color:#a8a8ad;font-size:10px;text-transform:uppercase}.wr-v4__comparativo-card strong{font-size:22px}.wr-v4__comparativo-card small{color:#ffcc66;font-size:9px}
+    .wr-v4__pilares{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .wr-v4__pilar{background:linear-gradient(135deg,#201d09,#151517 55%);border:1px solid #504512;border-radius:12px;padding:14px}
+    .wr-v4__pilar span{color:#ffd400;font:800 9px/1 ui-monospace,monospace}.wr-v4__pilar strong{display:block;margin-top:7px;font-size:17px}.wr-v4__pilar p{margin:7px 0 0;color:#c9c9cd;font-size:11px;line-height:1.45}
+    .wr-v4__roteiro{margin-top:16px;background:#101c18;border:1px solid #245d4a;border-radius:12px;padding:15px}
+    .wr-v4__roteiro>span{color:#62e6b5;font:800 9px/1 ui-monospace,monospace;letter-spacing:.06em}.wr-v4__roteiro h3{margin:8px 0;font-size:16px}.wr-v4__roteiro p{margin:0;color:#e4eee9;font-size:13px;line-height:1.55}.wr-v4__roteiro strong,.wr-v4__roteiro small{display:block;margin-top:9px}.wr-v4__roteiro small{color:#9ca9a3;font-size:10px}
     .wr-v4__social{max-width:1200px;margin:18px auto 0;border-top:1px solid #2a2a2f;padding-top:18px}
     .wr-v4__social-topo{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:14px}
     .wr-v4__social-topo h2{font-size:clamp(18px,2.4vw,26px);margin:8px 0 0}
@@ -271,8 +380,8 @@
     .wr-v4__meta-card small{display:block;color:#a8a8ad;font-size:11px;line-height:1.4}
     .wr-v4__meta-card a{display:inline-block;color:#ffd400;font-size:11px;margin-top:10px;text-decoration:underline}
     .wr-v4--erro{color:#ffcc66;font-size:13px}
-    @media(max-width:900px){.wr-v4__social-grade{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__meta-topo,.wr-v4__social-topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__meta-grade,.wr-v4__social-grade{grid-template-columns:1fr}}
+    @media(max-width:900px){.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__comparativo{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__meta-topo,.wr-v4__social-topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__meta-grade,.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__comparativo,.wr-v4__pilares{grid-template-columns:1fr}}
   `;
   document.head.append(estilo);
 

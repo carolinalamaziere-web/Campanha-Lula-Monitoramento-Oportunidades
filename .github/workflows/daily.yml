@@ -1,13 +1,16 @@
-name: Atualiza Painel Diário
+name: Atualiza Painel ao Vivo
 
 on:
   schedule:
-    # GitHub usa UTC: 10h e 22h UTC correspondem a 07h e 19h em Brasília.
-    - cron: "0 10,22 * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: atualiza-painel-ao-vivo
+  cancel-in-progress: false
 
 jobs:
   atualizar:
@@ -16,16 +19,27 @@ jobs:
     steps:
       - name: Baixar o repositório
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "20"
 
-      - name: Atualizar dados oficiais
+      - name: Buscar dados e gerar roteiro
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CONTENT_SOURCE: ${{ vars.CONTENT_SOURCE }}
+          GOOGLE_SHEETS_ID: ${{ vars.GOOGLE_SHEETS_ID }}
+          GOOGLE_SHEETS_RANGE: ${{ vars.GOOGLE_SHEETS_RANGE }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SUPABASE_TABLE: ${{ vars.SUPABASE_TABLE }}
         run: node scripts/atualiza-dados.js
 
-      - name: Atualizar conteúdos públicos pela Meta Graph API
+      - name: Atualizar conteúdos da Meta Graph API
         continue-on-error: true
         env:
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
@@ -37,19 +51,8 @@ jobs:
           META_GRAPH_TOP_LIMIT: ${{ vars.META_GRAPH_TOP_LIMIT }}
         run: node scripts/atualiza-meta-graph.js
 
-      - name: Gerar conteúdo com a Meta Model API
-        continue-on-error: true
-        shell: bash
-        env:
-          MODEL_API_KEY: ${{ secrets.MODEL_API_KEY }}
-        run: |
-          if [ -z "$MODEL_API_KEY" ]; then
-            echo "::warning::MODEL_API_KEY ainda não foi configurada; etapa da Meta ignorada."
-            exit 0
-          fi
-          node scripts/gera-conteudo-meta.js
-
-      - name: Publicar a atualização no repositório
+      - name: Publicar dados atualizados
+        id: publicar
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -57,7 +60,21 @@ jobs:
           git add dados.json
           if git diff --cached --quiet; then
             echo "Nenhuma alteração para publicar."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git commit -m "chore: atualiza dados do painel"
-          git push
+          git commit -m "chore: atualiza painel ao vivo"
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Acionar deploy do Netlify
+        if: steps.publicar.outputs.changed == 'true'
+        env:
+          NETLIFY_HOOK: ${{ secrets.NETLIFY_HOOK }}
+        shell: bash
+        run: |
+          if [ -z "$NETLIFY_HOOK" ]; then
+            echo "::warning::NETLIFY_HOOK não configurado; o push ainda pode acionar o deploy conectado ao Git."
+            exit 0
+          fi
+          curl --fail --silent --show-error --request POST "$NETLIFY_HOOK"
