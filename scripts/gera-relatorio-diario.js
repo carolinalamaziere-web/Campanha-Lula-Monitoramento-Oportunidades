@@ -58,7 +58,9 @@ function itemParaPrompt(item) {
     curtidas: Number(item.curtidas || 0),
     reacoes: Number(item.reacoes || 0),
     comentarios: Number(item.comentarios || 0),
-    compartilhamentos: Number(item.compartilhamentos || 0),
+    compartilhamentos: item.compartilhamentos == null ? null : Number(item.compartilhamentos),
+    alcance: item.alcance == null ? null : Number(item.alcance),
+    visualizacoes: item.visualizacoes == null ? null : Number(item.visualizacoes),
     crescimentoPercentual: Number(item.crescimentoPercentual || 0),
     permalink: item.permalink
   };
@@ -117,19 +119,37 @@ function esquemaRelatorio() {
           },
           conteudosGerados: {
             type: "array",
+            minItems: 4,
+            maxItems: 4,
             items: {
               type: "object",
               additionalProperties: false,
               properties: {
                 titulo: { type: "string" },
                 plataforma: { type: "string" },
-                formato: { type: "string" },
+                formato: { type: "string", enum: ["Reels", "Carrossel", "Status", "Figurinha"] },
+                tipoEvidencia: { type: "string" },
+                narrativa: { type: "string" },
                 gancho: { type: "string" },
-                roteiro28s: { type: "string" },
+                desenvolvimento: { type: "string" },
                 cta: { type: "string" },
+                duracaoOuEstrutura: { type: "string" },
+                hipoteseTeste: { type: "string" },
                 fontesIds
               },
-              required: ["titulo", "plataforma", "formato", "gancho", "roteiro28s", "cta", "fontesIds"]
+              required: [
+                "titulo",
+                "plataforma",
+                "formato",
+                "tipoEvidencia",
+                "narrativa",
+                "gancho",
+                "desenvolvimento",
+                "cta",
+                "duracaoOuEstrutura",
+                "hipoteseTeste",
+                "fontesIds"
+              ]
             }
           },
           limitacoes: { type: "array", items: { type: "string" } }
@@ -171,7 +191,10 @@ async function gerarAnaliseOpenAI(entrada, periodo) {
               "Use exclusivamente os registros Meta fornecidos e nunca invente métricas, fontes, links, falas, fatos, causalidade ou crescimento.",
               "Analise cada registro pelo id. Diferencie descrição factual de interpretação.",
               "Gere pautas e peças originais baseadas nas evidências, sem copiar legendas extensas.",
-              "Cada roteiro deve ter de 58 a 72 palavras, linguagem brasileira direta e um CTA para conferir a fonte.",
+              "Gere exatamente quatro oportunidades, nesta ordem: Reels, Carrossel, Status e Figurinha.",
+              "Para Reels use plataforma Instagram; para Carrossel use Instagram; para Status e Figurinha use WhatsApp.",
+              "Status e Figurinha são adaptações editoriais de sinais observados na Meta, nunca métricas coletadas do WhatsApp.",
+              "Cada oportunidade deve informar narrativa, gancho, desenvolvimento, CTA, duração ou estrutura e hipótese de teste.",
               "Em fontesIds, use somente ids existentes na entrada. Quando faltarem dados, declare a limitação."
             ].join(" ")
           },
@@ -180,7 +203,7 @@ async function gerarAnaliseOpenAI(entrada, periodo) {
             content: [
               `Gere o relatório das últimas ${dias} dias, de ${periodo.inicioLocal} até ${periodo.fimLocal}.`,
               "A apresentação no painel começará por 'O que mais engajou no campo pró-Bolsonaro' e depois mostrará o campo pró-Lula.",
-              "Produza uma análise curta para cada registro, até 8 pautas, prioridades reais de plataforma/formato e até 5 conteúdos novos.",
+              "Produza uma análise curta para cada registro, até 8 pautas, prioridades reais de plataforma/formato e quatro oportunidades por formato.",
               `DADOS META:\n${JSON.stringify(entrada)}`
             ].join("\n")
           }
@@ -214,6 +237,33 @@ function fontesValidas(itens, idsValidos) {
   })).filter((item) => item.fontesIds.length);
 }
 
+function validarOportunidades(itens) {
+  const formatosObrigatorios = ["Reels", "Carrossel", "Status", "Figurinha"];
+  const porFormato = new Map((itens || []).map((item) => [item.formato, item]));
+  const faltantes = formatosObrigatorios.filter((formato) => !porFormato.has(formato));
+  if (faltantes.length) {
+    throw new Error(`A OpenAI não retornou as oportunidades obrigatórias: ${faltantes.join(", ")}.`);
+  }
+  return formatosObrigatorios.map((formato) => porFormato.get(formato));
+}
+
+function enriquecerFontes(itens, fontesPorId) {
+  return itens.map((item) => ({
+    ...item,
+    fontes: item.fontesIds.map((id) => {
+      const fonte = fontesPorId.get(id);
+      return {
+        id,
+        plataforma: fonte?.rede || null,
+        formato: fonte ? formato(fonte) : null,
+        permalink: fonte?.permalink || null,
+        interacoes: Number(fonte?.interacoes || 0),
+        compartilhamentos: fonte?.compartilhamentos == null ? null : Number(fonte.compartilhamentos)
+      };
+    })
+  }));
+}
+
 function enriquecer(item, analises) {
   const analise = analises.get(item.id) || {};
   const legenda = texto(item.legenda, 360);
@@ -234,10 +284,13 @@ function enriquecer(item, analises) {
     curtidas: Number(item.curtidas || 0),
     reacoes: Number(item.reacoes || 0),
     comentarios: Number(item.comentarios || 0),
-    compartilhamentos: Number(item.compartilhamentos || 0),
+    compartilhamentos: item.compartilhamentos == null ? null : Number(item.compartilhamentos),
+    alcance: item.alcance == null ? null : Number(item.alcance),
+    visualizacoes: item.visualizacoes == null ? null : Number(item.visualizacoes),
     crescimentoPercentual: Number(item.crescimentoPercentual || 0),
     historico: Array.isArray(item.historico) ? item.historico : [],
     permalink: item.permalink,
+    midiaUrl: item.midiaUrl || null,
     miniaturaUrl: item.miniaturaUrl || null
   };
 }
@@ -315,7 +368,12 @@ async function executar() {
   const assinaturaEntrada = assinatura({ periodo: [periodo.inicioLocal, periodo.fimLocal], entrada });
   const { resultado, responseId } = await gerarAnaliseOpenAI(entrada, periodo);
   const idsValidos = new Set([...bolsonaro, ...lula].map((item) => item.id));
+  const fontesPorId = new Map([...bolsonaro, ...lula].map((item) => [item.id, item]));
   const analises = analisePorId(resultado, idsValidos);
+  const oportunidades = enriquecerFontes(
+    validarOportunidades(fontesValidas(resultado.conteudosGerados, idsValidos)),
+    fontesPorId
+  );
 
   const relatorio = {
     status: bolsonaro.length && lula.length ? "completo" : "parcial",
@@ -339,7 +397,8 @@ async function executar() {
     },
     pautasInteressantes: fontesValidas(resultado.pautasInteressantes, idsValidos),
     plataformasFormatosPrioritarios: fontesValidas(resultado.plataformasFormatosPrioritarios, idsValidos),
-    conteudosGerados: fontesValidas(resultado.conteudosGerados, idsValidos),
+    oportunidadesPorFormato: oportunidades,
+    conteudosGerados: oportunidades,
     limitacoes: [
       ...(resultado.limitacoes || []).map((item) => texto(item, 500)).filter(Boolean),
       ...(bolsonaro.length ? [] : ["Nenhum conteúdo de conta classificada como pró-Bolsonaro foi coletado no período."]),

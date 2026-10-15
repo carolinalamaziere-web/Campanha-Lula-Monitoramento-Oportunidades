@@ -21,7 +21,9 @@ jobs:
       - name: Baixar o repositório
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_TOKEN }}
+          # Usa o PAT quando existir e cai no token nativo do Actions nas
+          # execuções agendadas. Isso evita a falha "token not supplied".
+          token: ${{ secrets.GH_TOKEN || github.token }}
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
@@ -56,7 +58,7 @@ jobs:
 
       - name: Gerar relatório e conteúdos com OpenAI
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.MODEL_API_KEY }}
           OPENAI_REPORT_MODEL: ${{ vars.OPENAI_REPORT_MODEL }}
           REPORT_DAYS: "28"
         run: node scripts/gera-relatorio-diario.js

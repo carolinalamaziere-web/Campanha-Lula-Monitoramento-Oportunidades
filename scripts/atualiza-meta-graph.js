@@ -5,7 +5,7 @@ const raiz = path.resolve(__dirname, "..");
 const arquivoDados = path.join(raiz, "dados.json");
 const versaoApi = normalizarVersao(process.env.META_GRAPH_API_VERSION || "v26.0");
 const limiteBusca = numeroInteiro(process.env.META_GRAPH_FETCH_LIMIT, 100, 1, 100);
-const limiteRanking = numeroInteiro(process.env.META_GRAPH_TOP_LIMIT, 240, 20, 1000);
+const limiteRanking = numeroInteiro(process.env.META_GRAPH_TOP_LIMIT, 1000, 20, 1000);
 const janelaDias = numeroInteiro(process.env.META_TRENDING_DAYS, 28, 1, 90);
 const token = String(process.env.META_ACCESS_TOKEN || "").trim();
 const metaObrigatoria = /^(1|true|sim)$/i.test(String(process.env.META_REQUIRED || ""));
@@ -131,6 +131,7 @@ function midiaFacebook(post) {
   const fonte = urlSegura(anexo?.media?.source);
   return {
     tipo: video ? "VIDEO" : tipoBruto.includes("ALBUM") ? "CAROUSEL_ALBUM" : "IMAGE",
+    formato: video ? "Vídeo" : tipoBruto.includes("ALBUM") ? "Carrossel" : "Feed",
     midiaUrl: video ? fonte : imagem,
     miniaturaUrl: imagem
   };
@@ -184,6 +185,9 @@ async function coletarFacebook(alvo) {
       reacoes,
       comentarios,
       compartilhamentos,
+      alcance: null,
+      visualizacoes: null,
+      metricasDisponiveis: ["reações", "comentários", "compartilhamentos"],
       interacoes,
       taxaEngajamentoEstimada: seguidores > 0 ? Number(((interacoes / seguidores) * 100).toFixed(4)) : null
     };
@@ -201,6 +205,15 @@ function midiaInstagram(item) {
   const tipo = String(item.media_type || principal.media_type || "IMAGE").toUpperCase();
   return {
     tipo,
+    formato: String(item.media_product_type || "").toUpperCase() === "REELS"
+      ? "Reels"
+      : tipo === "CAROUSEL_ALBUM"
+        ? "Carrossel"
+        : String(item.media_product_type || "").toUpperCase() === "STORY"
+          ? "Stories"
+          : tipo === "VIDEO"
+            ? "Vídeo"
+            : "Feed",
     midiaUrl: urlSegura(principal.media_url || item.media_url),
     miniaturaUrl: urlSegura(principal.thumbnail_url || item.thumbnail_url || principal.media_url || item.media_url)
   };
@@ -212,6 +225,7 @@ async function coletarInstagram(usuario, igUserId) {
     "id",
     "caption",
     "media_type",
+    "media_product_type",
     "media_url",
     "thumbnail_url",
     "permalink",
@@ -256,7 +270,10 @@ async function coletarInstagram(usuario, igUserId) {
       curtidas,
       reacoes: 0,
       comentarios,
-      compartilhamentos: 0,
+      compartilhamentos: null,
+      alcance: null,
+      visualizacoes: null,
+      metricasDisponiveis: ["curtidas", "comentários"],
       interacoes,
       taxaEngajamentoEstimada: seguidores > 0 ? Number(((interacoes / seguidores) * 100).toFixed(4)) : null
     };
@@ -352,7 +369,7 @@ async function executar() {
       fim: registradoEm
     },
     criterioRanking: "Soma das interações públicas disponíveis em cada rede",
-    observacao: "A taxa usa o total atual de seguidores e não substitui alcance ou impressões privadas.",
+    observacao: "Alcance e compartilhamentos só aparecem quando a permissão da conta e o endpoint os disponibilizam. Para contas externas do Instagram, a Meta normalmente expõe curtidas e comentários, não alcance ou compartilhamentos.",
     fontes,
     avisos,
     itens

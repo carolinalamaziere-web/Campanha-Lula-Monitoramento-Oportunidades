@@ -50,14 +50,17 @@ Abra **Settings > Secrets and variables > Actions > New repository secret**.
 
 ### Obrigatórios
 
-- `GH_TOKEN`: fine-grained personal access token com acesso somente a este repositório e permissão **Contents: Read and write**.
 - `NETLIFY_HOOK`: endereço completo do Build Hook criado no Netlify.
-- `OPENAI_API_KEY`: chave de projeto da OpenAI. O relatório usa `gpt-4o` por padrão no endpoint `/v1/chat/completions`; o roteiro auxiliar antigo continua disponível no script separado.
+- `OPENAI_API_KEY`: chave de projeto da OpenAI. O relatório usa `gpt-4o` por padrão no endpoint `/v1/chat/completions`; por compatibilidade, o workflow aceita o secret existente `MODEL_API_KEY` como fallback.
 - `META_ACCESS_TOKEN`: token válido para as Páginas e contas profissionais cobertas pela integração.
+
+### Opcional
+
+- `GH_TOKEN`: PAT com **Contents: Read and write**. Quando ele não existe, o workflow usa automaticamente o `github.token` nativo com a permissão `contents: write` declarada no arquivo.
 
 Nunca coloque essas chaves em `dados.json`, `index.html`, arquivos `.env` versionados ou variáveis públicas do Netlify.
 
-### Criar o PAT `GH_TOKEN`
+### Criar o PAT `GH_TOKEN` (opcional)
 
 1. No GitHub, abra **Settings > Developer settings > Personal access tokens > Fine-grained tokens**.
 2. Escolha somente o repositório `Campanha-Lula-Monitoramento-Oportunidades`.
@@ -91,7 +94,7 @@ Um push em um site conectado ao Git já aciona o deploy normalmente. O workflow 
 - o bloco equivalente do campo pró-Lula;
 - até 20 conteúdos reais por campo, com link e métricas preservadas do coletor;
 - pautas interessantes e plataformas/formatos prioritários;
-- até cinco conteúdos novos, incluindo roteiro de aproximadamente 28 segundos;
+- exatamente quatro oportunidades diárias: Reels, Carrossel, Status e Figurinha, cada uma com narrativa, gancho, desenvolvimento, CTA, estrutura, hipótese de teste e links das evidências;
 - cobertura e limitações da coleta.
 
 O modelo não escreve links nem métricas no resultado final: esses campos são mesclados deterministicamente a partir da resposta da Meta. A variável opcional `OPENAI_REPORT_MODEL` permite trocar o modelo se `gpt-4o` não estiver disponível na conta.
@@ -111,7 +114,7 @@ Por segurança editorial, a instrução proíbe inventar números, fontes, compa
 Crie uma planilha com uma aba chamada `Conteudos` e a primeira linha:
 
 ```text
-id | status | titulo | fato | valor | data_referencia | fonte | publico | plataforma | formato | volume | interacoes | crescimento | publicado_em | analise | orientacao | atualizado_em
+id | status | titulo | fato | valor | data_referencia | fonte | publico | plataforma | formato | volume | alcance | compartilhamentos | interacoes | midia_url | miniatura_url | crescimento | publicado_em | analise | orientacao | atualizado_em
 ```
 
 Somente linhas com `status` igual a `publicar`, `publicado`, `aprovado`, `ativo`, `sim`, `true` ou `1` entram no painel.
@@ -123,7 +126,7 @@ Depois:
 3. Em **GitHub > Settings > Secrets and variables > Actions > Variables**, crie:
    - `CONTENT_SOURCE` = `google_sheets`
    - `GOOGLE_SHEETS_ID` = trecho entre `/d/` e `/edit` na URL da planilha
-   - `GOOGLE_SHEETS_RANGE` = `Conteudos!A:Q`
+   - `GOOGLE_SHEETS_RANGE` = `Conteudos!A:U`
 4. Em **Secrets**, crie `GOOGLE_SERVICE_ACCOUNT_JSON` com o JSON completo da Service Account. Também é aceito o JSON codificado em base64.
 
 O acesso é feito por `fetch` à Google Sheets API com escopo somente de leitura.
@@ -154,16 +157,16 @@ Para manter o ranking público de Facebook e Instagram, configure:
 - `META_LULA_ACCOUNTS`: IDs, usuários ou nomes exatos das contas que pertencem ao campo pró-Lula, separados por vírgula.
 - `META_GRAPH_API_VERSION`: por exemplo, `v26.0`.
 - `META_GRAPH_FETCH_LIMIT`: padrão `100` por conta.
-- `META_GRAPH_TOP_LIMIT`: padrão `240`, para permitir até 20 resultados em cada filtro de plataforma/formato.
+- `META_GRAPH_TOP_LIMIT`: padrão `1000`, para preservar candidatos suficientes e permitir até 20 resultados em cada filtro de plataforma/formato.
 - `OPENAI_REPORT_MODEL`: opcional; padrão `gpt-4o` conforme o agente solicitado.
 
-O workflow fixa a janela do relatório em 28 dias. O bloco **Trending Agora** mostra no máximo 20 conteúdos por combinação de plataforma e formato. O gráfico de cada linha usa o histórico real de interações armazenado a cada execução; no primeiro ciclo ele começa como uma linha estável e ganha forma conforme novas amostras chegam.
+O workflow fixa a janela do relatório em 28 dias. O bloco **Trending Agora** mostra no máximo 20 conteúdos por combinação de plataforma e formato, com foto ou vídeo quando a URL de mídia estiver disponível, link original, alcance, compartilhamentos, interações, resumo e leitura editorial. O gráfico de cada linha usa o histórico real de interações armazenado a cada execução; no primeiro ciclo ele começa como uma linha estável e ganha forma conforme novas amostras chegam.
 
 Abaixo do ranking, o painel lista todos os conteúdos visíveis no formato **O que mais engajou**, agrupando-os por campo político. A descrição usa a coluna opcional `analise`; quando ela estiver vazia, usa apenas o resumo, fato, orientação ou legenda coletada, sem completar informações ausentes.
 
-A Meta Graph API alimenta Facebook e Instagram. TikTok, YouTube, X/Twitter e WhatsApp precisam entrar pela API autorizada de cada plataforma ou pelas colunas `plataforma`, `formato`, `volume`, `interacoes` e `crescimento` do Google Sheets/Supabase; o painel não apresenta esses canais como se fossem dados da Meta.
+A Meta Graph API alimenta Facebook e Instagram. TikTok e WhatsApp precisam entrar pela API autorizada de cada plataforma ou pelas colunas `plataforma`, `formato`, `volume`, `interacoes`, `alcance`, `compartilhamentos`, `midia_url`, `miniatura_url` e `crescimento` do Google Sheets/Supabase; o painel não apresenta esses canais como se fossem dados da Meta.
 
-Para Páginas externas do Facebook, o aplicativo pode precisar de **Page Public Content Access**. No Instagram, Business Discovery consulta contas profissionais públicas. “Dados reais da Meta” significa somente os objetos e campos que o token, a revisão do aplicativo e as permissões efetivamente autorizarem; não significa acesso irrestrito a todas as contas ou a conteúdo privado.
+Para Páginas externas do Facebook, o aplicativo pode precisar de **Page Public Content Access**. No Instagram, Business Discovery consulta contas profissionais públicas. Alcance e compartilhamentos aparecem apenas quando o endpoint e a permissão da conta os liberam; para contas externas do Instagram, esses campos podem ficar como **N/D**, enquanto curtidas e comentários continuam disponíveis. “Dados reais da Meta” significa somente os objetos e campos que o token, a revisão do aplicativo e as permissões efetivamente autorizarem; não significa acesso irrestrito a todas as contas ou a conteúdo privado.
 
 ## 8. Ativar e testar
 

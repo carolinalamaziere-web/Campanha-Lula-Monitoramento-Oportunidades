@@ -10,7 +10,11 @@ create table if not exists public.conteudos_painel (
   plataforma text,
   formato text,
   volume bigint,
+  alcance bigint,
+  compartilhamentos bigint,
   interacoes bigint,
+  midia_url text,
+  miniatura_url text,
   crescimento numeric,
   publicado_em timestamptz,
   analise text,
@@ -20,7 +24,11 @@ create table if not exists public.conteudos_painel (
 
 alter table public.conteudos_painel add column if not exists plataforma text;
 alter table public.conteudos_painel add column if not exists volume bigint;
+alter table public.conteudos_painel add column if not exists alcance bigint;
+alter table public.conteudos_painel add column if not exists compartilhamentos bigint;
 alter table public.conteudos_painel add column if not exists interacoes bigint;
+alter table public.conteudos_painel add column if not exists midia_url text;
+alter table public.conteudos_painel add column if not exists miniatura_url text;
 alter table public.conteudos_painel add column if not exists crescimento numeric;
 alter table public.conteudos_painel add column if not exists publicado_em timestamptz;
 alter table public.conteudos_painel add column if not exists analise text;
