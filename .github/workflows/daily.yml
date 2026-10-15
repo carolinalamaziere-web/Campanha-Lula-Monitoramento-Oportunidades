@@ -25,6 +25,18 @@ jobs:
       - name: Atualizar dados oficiais
         run: node scripts/atualiza-dados.js
 
+      - name: Atualizar conteúdos públicos pela Meta Graph API
+        continue-on-error: true
+        env:
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          META_IG_USER_ID: ${{ vars.META_IG_USER_ID }}
+          META_FACEBOOK_PAGE_IDS: ${{ vars.META_FACEBOOK_PAGE_IDS }}
+          META_INSTAGRAM_USERNAMES: ${{ vars.META_INSTAGRAM_USERNAMES }}
+          META_GRAPH_API_VERSION: ${{ vars.META_GRAPH_API_VERSION }}
+          META_GRAPH_FETCH_LIMIT: ${{ vars.META_GRAPH_FETCH_LIMIT }}
+          META_GRAPH_TOP_LIMIT: ${{ vars.META_GRAPH_TOP_LIMIT }}
+        run: node scripts/atualiza-meta-graph.js
+
       - name: Gerar conteúdo com a Meta Model API
         continue-on-error: true
         shell: bash

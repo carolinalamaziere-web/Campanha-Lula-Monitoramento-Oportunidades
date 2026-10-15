@@ -8,6 +8,7 @@ Painel estático ligado a um arquivo de dados independente. O navegador recarreg
 - `dados.json`: conteúdo dinâmico e indicadores.
 - `scripts/painel-dinamico.js`: busca e renderiza os dados no navegador.
 - `scripts/atualiza-dados.js`: consulta séries oficiais do Banco Central.
+- `scripts/atualiza-meta-graph.js`: busca publicações públicas e monta o ranking de engajamento da Meta Graph API.
 - `scripts/gera-conteudo-meta.js`: transforma fatos com fonte e data em sugestões populares usando a Meta Model API.
 - `.github/workflows/daily.yml`: rotina automática e execução manual.
 - `netlify.toml`: publicação da raiz e prevenção de cache do JSON.
@@ -39,6 +40,38 @@ O script consulta séries públicas do Sistema Gerenciador de Séries Temporais 
 - Dólar — venda: série 10813.
 
 Os demais conteúdos editoriais permanecem em `dados.json` para revisão humana. Não publique números ou acusações sem validar a fonte e a data de referência.
+
+## Integração com a Meta Graph API
+
+O painel pode exibir automaticamente imagens, Reels e vídeos públicos de Páginas do Facebook e contas profissionais do Instagram. A coleta ocorre no GitHub Actions; o token nunca é enviado ao navegador nem salvo em `dados.json`.
+
+### 1. Credencial
+
+No GitHub, abra **Settings > Secrets and variables > Actions > Secrets** e crie:
+
+- `META_ACCESS_TOKEN`: token válido da Meta Graph API.
+
+Use um token com as permissões adequadas ao caso, normalmente `pages_show_list`, `pages_read_engagement` e `instagram_basic`. Para Páginas que você não administra, o aplicativo precisa da aprovação **Page Public Content Access**. O Instagram Business Discovery exige uma conta profissional autenticada e só consulta contas profissionais públicas.
+
+### 2. Fontes monitoradas
+
+Em **Settings > Secrets and variables > Actions > Variables**, crie:
+
+- `META_FACEBOOK_PAGE_IDS`: IDs ou nomes de usuário das Páginas, separados por vírgula.
+- `META_INSTAGRAM_USERNAMES`: usuários públicos do Instagram, sem `@`, separados por vírgula.
+- `META_IG_USER_ID`: ID da conta profissional autenticada usada para o Instagram Business Discovery.
+
+Variáveis opcionais:
+
+- `META_GRAPH_API_VERSION`: versão da Graph API, no formato `v26.0`. Se omitida, o script usa `v26.0`.
+- `META_GRAPH_FETCH_LIMIT`: publicações consultadas por conta, de 1 a 100. Padrão: `25`.
+- `META_GRAPH_TOP_LIMIT`: conteúdos mantidos no ranking combinado, de 1 a 50. Padrão: `12`.
+
+Depois de configurar, abra **Actions > Atualiza Painel Diário > Run workflow**. O resultado é salvo em `dados.json`, no objeto `metaGraph`, e publicado no painel. Uma falha da Meta não apaga o último ranking válido e não interrompe a atualização dos demais indicadores.
+
+Para testar localmente, defina as mesmas variáveis no terminal e execute `node scripts/atualiza-meta-graph.js`. Não salve o token em arquivos versionados; arquivos `.env` estão bloqueados pelo `.gitignore`.
+
+O ranking soma somente interações públicas retornadas pela plataforma: reações, comentários e compartilhamentos no Facebook; curtidas e comentários no Instagram. Alcance, impressões, salvamentos, retenção e outras métricas privadas não ficam disponíveis para contas externas.
 
 ## Integração com a IA da Meta
 
