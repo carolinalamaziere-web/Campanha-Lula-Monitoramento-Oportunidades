@@ -28,7 +28,7 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Atualizar fontes auxiliares
         env:
@@ -62,6 +62,12 @@ jobs:
           OPENAI_REPORT_MODEL: ${{ vars.OPENAI_REPORT_MODEL }}
           REPORT_DAYS: "28"
         run: node scripts/gera-relatorio-diario.js
+
+      - name: Espelhar resultado no Supabase
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: node scripts/sincroniza-supabase.js
 
       - name: Publicar dados atualizados
         id: publicar

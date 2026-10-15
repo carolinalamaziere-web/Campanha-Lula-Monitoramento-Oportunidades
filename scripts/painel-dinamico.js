@@ -26,6 +26,34 @@
     }
   }
 
+  function registrarEventoObservado(item, tipo, urlDestino) {
+    const conteudoId = String(item?.id || item?.permalink || item?.url || "").trim();
+    if (!conteudoId) return;
+    const corpo = JSON.stringify({
+      tipo,
+      conteudoId: conteudoId.slice(0, 300),
+      plataforma: String(item?.plataforma || item?.rede || "").slice(0, 80),
+      formato: String(item?.formato || item?.tipo || "").slice(0, 80),
+      urlDestino: urlHttps(urlDestino || item?.permalink || item?.url)
+    });
+    const endpoint = "/.netlify/functions/registrar-evento";
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(endpoint, new Blob([corpo], { type: "application/json" }));
+      return;
+    }
+    fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: corpo,
+      keepalive: true
+    }).catch(() => {});
+  }
+
+  function observarClique(link, item, tipo = "clique") {
+    link.addEventListener("click", () => registrarEventoObservado(item, tipo, link.href));
+    return link;
+  }
+
   function formatarNumero(valor) {
     const numero = Number(valor);
     return Number.isFinite(numero) ? numero.toLocaleString("pt-BR") : "0";
@@ -53,6 +81,7 @@
       video.playsInline = true;
       if (miniaturaUrl) video.poster = miniaturaUrl;
       video.setAttribute("aria-label", `Vídeo de ${item.contaNome || item.rede}`);
+      video.addEventListener("play", () => registrarEventoObservado(item, "play", midiaUrl), { once: true });
       moldura.append(video);
     } else {
       const imagem = document.createElement("img");
@@ -121,7 +150,7 @@
         abrir.href = link;
         abrir.target = "_blank";
         abrir.rel = "noopener noreferrer";
-        card.append(abrir);
+        card.append(observarClique(abrir, item));
       }
       grade.append(card);
     }
@@ -580,6 +609,7 @@
         titulo.href = item.url;
         titulo.target = "_blank";
         titulo.rel = "noopener noreferrer";
+        observarClique(titulo, item);
       }
       const meta = criar("div", "wr-trending__meta");
       meta.append(
@@ -971,7 +1001,28 @@
     try {
       const resposta = await fetch(`./dados.json?v=${Date.now()}`, { cache: "no-store" });
       if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
-      dadosAtuais = await resposta.json();
+      const dadosBase = await resposta.json();
+      try {
+        const respostaAoVivo = await fetch(`/.netlify/functions/dados-ao-vivo?v=${Date.now()}`, {
+          cache: "no-store"
+        });
+        if (respostaAoVivo.ok) {
+          const dadosAoVivo = await respostaAoVivo.json();
+          const dataBase = new Date(dadosBase.metaGraph?.atualizadoEm || 0).getTime() || 0;
+          const dataAoVivo = new Date(dadosAoVivo.metaGraph?.atualizadoEm || 0).getTime() || 0;
+          if (dadosAoVivo.metaGraph?.itens?.length && dataAoVivo >= dataBase) {
+            dadosBase.metaGraph = dadosAoVivo.metaGraph;
+          }
+          if (dadosAoVivo.oportunidades?.length) {
+            dadosBase.relatorioQuatroSemanas ||= {};
+            dadosBase.relatorioQuatroSemanas.oportunidadesPorFormato = dadosAoVivo.oportunidades;
+            dadosBase.relatorioQuatroSemanas.conteudosGerados = dadosAoVivo.oportunidades;
+          }
+        }
+      } catch (erroAoVivo) {
+        console.debug("Fonte Supabase ao vivo indisponível; usando dados.json.", erroAoVivo);
+      }
+      dadosAtuais = dadosBase;
       montarPainel(dadosAtuais);
       agendarMonitoramento();
     } catch (erro) {

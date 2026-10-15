@@ -1,6 +1,6 @@
 # War Room Lula 2026 — painel automático ao vivo
 
-Painel estático de oito abas publicado pelo Netlify a partir do GitHub. O conteúdo dinâmico fica em `dados.json`; o navegador consulta esse arquivo a cada 30 segundos sem recarregar a página.
+Painel de oito abas publicado pelo Netlify a partir do GitHub. O navegador consulta `dados.json` e, quando configurada, a fonte ao vivo do Supabase a cada 30 segundos sem recarregar a página.
 
 ## Fluxo
 
@@ -10,12 +10,12 @@ Google Sheets ou Supabase
 Agente GitHub Actions diariamente às 07h05 (Brasília)
         ↓
 Banco Central + Meta Graph API (28 dias) + OpenAI
-        ↓
-commit de dados.json + Build Hook
-        ↓
-deploy conectado ao Git no Netlify
-        ↓
-site consulta dados.json a cada 30 segundos
+        ↓                         ↘
+commit de dados.json          Supabase
+        ↓                         ↑
+deploy conectado ao Git     Netlify Function a cada hora
+        ↓                         ↑
+site consulta dados.json + fonte ao vivo a cada 30 segundos
 ```
 
 O agente roda uma vez por dia. Primeiro atualiza as fontes auxiliares, depois coleta os conteúdos reais permitidos pela Meta Graph API e, somente então, usa a OpenAI para analisar os registros e gerar o relatório. Se a coleta obrigatória da Meta falhar, o workflow para e não publica um relatório inventado.
@@ -29,6 +29,10 @@ O agente roda uma vez por dia. Primeiro atualiza as fontes auxiliares, depois co
 - `scripts/importa-conteudo.js`: adaptadores para Google Sheets e Supabase.
 - `scripts/atualiza-meta-graph.js`: ranking público de Facebook e Instagram.
 - `scripts/gera-relatorio-diario.js`: relatório das quatro semanas e conteúdos editoriais gerados a partir dos registros coletados.
+- `scripts/sincroniza-supabase.js`: espelha a coleta e as oportunidades no banco sem alterar métricas ausentes.
+- `netlify/functions/atualiza-painel.mjs`: coleta horária oficial de Meta e, opcionalmente, TikTok Display API.
+- `netlify/functions/dados-ao-vivo.js`: entrega ao navegador a versão mais recente do Supabase sem expor a chave.
+- `netlify/functions/registrar-evento.js`: registra somente cliques, downloads e plays observados dentro do painel.
 - `.github/workflows/daily.yml`: agente diário executado às 07h05 no horário de Brasília.
 - `supabase/schema.sql`: tabela opcional para a fonte editorial.
 - `scripts/supabase-realtime-exemplo.js`: exemplo opcional de canal Realtime no navegador.
@@ -144,6 +148,21 @@ O acesso é feito por `fetch` à Google Sheets API com escopo somente de leitura
 
 A chave secreta do Supabase ignora RLS e nunca pode ir para o navegador. O arquivo `scripts/supabase-realtime-exemplo.js` mostra um canal Realtime opcional usando apenas uma chave pública/publishable; ele não é necessário para o fluxo via `dados.json`.
 
+O mesmo `supabase/schema.sql` cria `trending_top20`, `oportunidades_diarias`, `eventos_conteudo`, `config` e a view `top20_por_plataforma_formato`. As tabelas ficam com RLS ativo e sem acesso direto para `anon`; o navegador consulta a função do Netlify, e a chave secreta continua apenas no servidor.
+
+### Variáveis no Netlify
+
+Em **Site configuration > Environment variables**, configure:
+
+- `SUPABASE_URL` e `SUPABASE_SECRET_KEY`;
+- `META_ACCESS_TOKEN`, `META_IG_USER_ID`, `META_FACEBOOK_PAGE_IDS` e `META_INSTAGRAM_USERNAMES`;
+- `META_BOLSONARO_ACCOUNTS` e `META_LULA_ACCOUNTS`;
+- `META_GRAPH_API_VERSION` (opcional; padrão `v26.0`);
+- `TIKTOK_ACCESS_TOKEN` e `TIKTOK_ACCOUNT_LABEL` (opcionais, para a conta autorizada pela TikTok Display API);
+- `SITE_ORIGIN` = `https://coruscating-tulumba-757d4e.netlify.app`.
+
+Depois do deploy, `atualiza-painel.mjs` roda a cada hora (`0 * * * *`) e grava no Supabase. `dados-ao-vivo.js` entrega os registros mais recentes ao painel, que continua consultando a cada 30 segundos mesmo sem novo build.
+
 ## 7. Meta Graph API — obrigatória para o agente diário
 
 Para manter o ranking público de Facebook e Instagram, configure:
@@ -164,7 +183,9 @@ O workflow fixa a janela do relatório em 28 dias. O bloco **Trending Agora** mo
 
 Abaixo do ranking, o painel lista todos os conteúdos visíveis no formato **O que mais engajou**, agrupando-os por campo político. A descrição usa a coluna opcional `analise`; quando ela estiver vazia, usa apenas o resumo, fato, orientação ou legenda coletada, sem completar informações ausentes.
 
-A Meta Graph API alimenta Facebook e Instagram. TikTok e WhatsApp precisam entrar pela API autorizada de cada plataforma ou pelas colunas `plataforma`, `formato`, `volume`, `interacoes`, `alcance`, `compartilhamentos`, `midia_url`, `miniatura_url` e `crescimento` do Google Sheets/Supabase; o painel não apresenta esses canais como se fossem dados da Meta.
+A Meta Graph API alimenta Facebook e Instagram. TikTok usa a TikTok Display API oficial e cobre somente a conta que autorizou o token; não é fornecido pela Graph API da Meta. WhatsApp precisa entrar por dados consentidos da plataforma ou por eventos observados no próprio site. O painel não apresenta esses canais como se fossem dados da Meta.
+
+Cliques, downloads e plays registrados pela função `registrar-evento.js` medem uso do painel. Eles nunca são multiplicados nem chamados de alcance, impressões ou visualizações de WhatsApp. O projeto não usa automação de WhatsApp Web, Puppeteer ou bibliotecas não oficiais.
 
 Para Páginas externas do Facebook, o aplicativo pode precisar de **Page Public Content Access**. No Instagram, Business Discovery consulta contas profissionais públicas. Alcance e compartilhamentos aparecem apenas quando o endpoint e a permissão da conta os liberam; para contas externas do Instagram, esses campos podem ficar como **N/D**, enquanto curtidas e comentários continuam disponíveis. “Dados reais da Meta” significa somente os objetos e campos que o token, a revisão do aplicativo e as permissões efetivamente autorizarem; não significa acesso irrestrito a todas as contas ou a conteúdo privado.
 
