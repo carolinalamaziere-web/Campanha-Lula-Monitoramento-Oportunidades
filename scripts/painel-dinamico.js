@@ -630,6 +630,89 @@
     });
   }
 
+  function montarRelatorioQuatroSemanas(dados) {
+    const relatorio = dados.relatorioQuatroSemanas;
+    if (!relatorio?.campos) return null;
+
+    const secao = criar("section", "wr-relatorio");
+    const topo = criar("div", "wr-relatorio__topo");
+    const titulo = criar("div");
+    titulo.append(
+      criar("span", "wr-relatorio__selo", "AGENTE DIÁRIO • META GRAPH API"),
+      criar("h2", "", "Relatório das últimas 4 semanas")
+    );
+    const periodo = relatorio.periodo
+      ? `${relatorio.periodo.inicioLocal} até ${relatorio.periodo.fimLocal}`
+      : "Período não informado";
+    topo.append(titulo, criar("span", "wr-relatorio__periodo", periodo));
+    secao.append(topo);
+
+    if (relatorio.resumoExecutivo) {
+      secao.append(criar("p", "wr-relatorio__resumo", relatorio.resumoExecutivo));
+    }
+
+    const grupos = [
+      ["O que mais engajou no campo pró-Bolsonaro", relatorio.campos.bolsonaro || []],
+      ["O que mais engajou no campo pró-Lula", relatorio.campos.lula || []]
+    ];
+    for (const [rotulo, itens] of grupos) {
+      const grupo = criar("div", "wr-relatorio__grupo");
+      grupo.append(criar("h3", "", rotulo));
+      if (!itens.length) {
+        grupo.append(criar("p", "wr-relatorio__vazio", "Nenhum conteúdo classificado neste campo foi retornado pela coleta configurada."));
+      }
+      itens.forEach((item, indice) => {
+        const card = criar("article", "wr-relatorio__item");
+        const cabecalho = criar("div", "wr-relatorio__item-topo");
+        cabecalho.append(
+          criar("strong", "", `${indice + 1}. ${item.titulo || "Conteúdo sem título"}`),
+          criar("span", "", `${item.plataforma || "Plataforma"} • ${item.formato || "Formato"}`)
+        );
+        card.append(cabecalho, criar("p", "", item.resumoFactual || "Descrição indisponível."));
+        const desempenho = criar("div", "wr-relatorio__metricas");
+        desempenho.append(criar("b", "", `${formatarNumero(item.interacoes)} interações públicas`));
+        if (item.comentarios) desempenho.append(criar("span", "", `${formatarNumero(item.comentarios)} comentários`));
+        if (item.compartilhamentos) desempenho.append(criar("span", "", `${formatarNumero(item.compartilhamentos)} compartilhamentos`));
+        card.append(desempenho, criar("p", "wr-relatorio__leitura", item.leituraEngajamento || ""));
+        const fonte = criarLinkFonte(item.permalink);
+        if (fonte) card.append(fonte);
+        grupo.append(card);
+      });
+      secao.append(grupo);
+    }
+
+    const criativos = relatorio.conteudosGerados || [];
+    if (criativos.length) {
+      const bloco = criar("div", "wr-relatorio__criativos");
+      bloco.append(criar("h3", "", "Conteúdos gerados a partir dos dados"));
+      const grade = criar("div", "wr-relatorio__criativos-grade");
+      criativos.forEach((item) => {
+        const card = criar("article", "wr-relatorio__criativo");
+        card.append(
+          criar("span", "", `${item.plataforma} • ${item.formato}`),
+          criar("strong", "", item.titulo),
+          criar("p", "", item.gancho),
+          criar("div", "wr-relatorio__roteiro", item.roteiro28s),
+          criar("b", "", item.cta)
+        );
+        grade.append(card);
+      });
+      bloco.append(grade);
+      secao.append(bloco);
+    }
+
+    if (Array.isArray(relatorio.limitacoes) && relatorio.limitacoes.length) {
+      const detalhes = document.createElement("details");
+      detalhes.className = "wr-relatorio__limitacoes";
+      detalhes.append(criar("summary", "", "Cobertura e limitações dos dados"));
+      const lista = document.createElement("ul");
+      relatorio.limitacoes.forEach((item) => lista.append(criar("li", "", item)));
+      detalhes.append(lista);
+      secao.append(detalhes);
+    }
+    return secao;
+  }
+
   function montarOperacao(dados) {
     const temTrending = Array.isArray(dados.trending) && dados.trending.length;
     const pilares = Array.isArray(dados.estrategia?.pilares) ? dados.estrategia.pilares : [];
@@ -733,6 +816,9 @@
     const operacao = montarOperacao(dados);
     if (operacao) painel.append(operacao);
 
+    const relatorio = montarRelatorioQuatroSemanas(dados);
+    if (relatorio) painel.append(relatorio);
+
     const metaGraph = montarMetaGraph(dados);
     if (metaGraph) painel.append(metaGraph);
 
@@ -799,6 +885,11 @@
     .wr-v4__social-topo h2{font-size:clamp(18px,2.4vw,26px);margin:8px 0 0}
     .wr-v4__social-selo{color:#62e6b5;font:700 10px/1 ui-monospace,monospace;letter-spacing:.08em}
     .wr-v4__social-atualizado{color:#8f8f96;font:11px/1.4 ui-monospace,monospace;text-align:right}
+    .wr-relatorio{margin-top:18px;padding:22px;background:#111113;border:1px solid #303036;border-radius:20px;color:#f7f7f4}
+    .wr-relatorio__topo{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.wr-relatorio__topo h2{margin:7px 0 0;font-size:22px}.wr-relatorio__selo{color:#ffd400;font:800 9px/1 ui-monospace,monospace;letter-spacing:.08em}.wr-relatorio__periodo{padding:7px 10px;background:#202024;border-radius:999px;color:#d7d7da;font:700 10px/1 ui-monospace,monospace;white-space:nowrap}
+    .wr-relatorio__resumo{margin:18px 0 0;padding:15px;background:#18181b;border-left:3px solid #ffd400;border-radius:10px;color:#d8d8dc;font-size:13px;line-height:1.6}
+    .wr-relatorio__grupo{margin-top:24px}.wr-relatorio__grupo h3,.wr-relatorio__criativos h3{margin:0 0 12px;color:#ffd400;font-size:17px}.wr-relatorio__item{padding:16px 0;border-top:1px solid #29292e}.wr-relatorio__grupo h3+.wr-relatorio__item{border-top:0}.wr-relatorio__item-topo{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.wr-relatorio__item-topo strong{font-size:14px;line-height:1.45}.wr-relatorio__item-topo span{flex:none;color:#9d9da5;font:10px/1.3 ui-monospace,monospace}.wr-relatorio__item>p{margin:8px 0 0;color:#c7c7cd;font-size:12px;line-height:1.55}.wr-relatorio__item .wr-relatorio__leitura{color:#9fa0a7}.wr-relatorio__metricas{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.wr-relatorio__metricas>*{padding:5px 7px;background:#202024;border-radius:7px;color:#dedee2;font:700 9px/1 ui-monospace,monospace}.wr-relatorio__vazio{padding:14px;border:1px dashed #3a3a40;border-radius:10px;color:#9b9ba3;font-size:12px}
+    .wr-relatorio__criativos{margin-top:25px;padding-top:20px;border-top:1px solid #303036}.wr-relatorio__criativos-grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.wr-relatorio__criativo{padding:15px;background:#0c1713;border:1px solid #245d4a;border-radius:13px}.wr-relatorio__criativo>span{color:#62e6b5;font:800 9px/1 ui-monospace,monospace}.wr-relatorio__criativo>strong{display:block;margin-top:8px;font-size:14px}.wr-relatorio__criativo>p{margin:8px 0;color:#c2d2cb;font-size:12px}.wr-relatorio__roteiro{padding:11px;background:#111f1a;border-radius:9px;color:#e7f1ed;font-size:12px;line-height:1.55}.wr-relatorio__criativo>b{display:block;margin-top:9px;color:#62e6b5;font-size:11px}.wr-relatorio__limitacoes{margin-top:18px;color:#9e9ea6;font-size:11px}.wr-relatorio__limitacoes summary{cursor:pointer}.wr-relatorio__limitacoes li{margin-top:6px;line-height:1.5}
     .wr-v4__social-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
     .wr-v4__social-card{min-width:0;overflow:hidden;background:#151517;border:1px solid #2a2a2f;border-radius:14px}
     .wr-v4__social-card-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px}
@@ -850,7 +941,7 @@
     .wr-monitor__vazio{margin:0;padding:14px;border:1px dashed #38383e;border-radius:10px;color:#a8a8ad;font:11px/1.5 ui-monospace,monospace}
     .wr-v4--erro{color:#ffcc66;font-size:13px}
     @media(max-width:900px){.wr-v4__social-grade,.wr-v4__live-grade{grid-template-columns:repeat(2,minmax(0,1fr))}.wr-trending__item{grid-template-columns:32px minmax(0,1fr) 90px}.wr-trending__tendencia{grid-column:2/-1}.wr-trending__grafico{width:130px}}
-    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__social-topo,.wr-monitor__topo,.wr-trending__topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__pilares{grid-template-columns:1fr}.wr-monitor__tabela{overflow-x:auto}.wr-monitor__linha{min-width:540px}.wr-trending{grid-column:1/-1;padding:15px}.wr-trending__item{grid-template-columns:32px minmax(0,1fr)}.wr-trending__metricas{grid-column:2}.wr-trending__tendencia{grid-column:2}.wr-trending__total{white-space:nowrap}.wr-trending__analise{grid-template-columns:1fr}.wr-trending__analise-desempenho{justify-items:start}.wr-trending__analise-desempenho .wr-trending__grafico{width:min(100%,220px)}}
+    @media(max-width:760px){.wr-v4{padding:16px}.wr-v4__topo,.wr-v4__rodape,.wr-v4__social-topo,.wr-monitor__topo,.wr-trending__topo,.wr-relatorio__topo,.wr-relatorio__item-topo{align-items:flex-start;flex-direction:column}.wr-v4__atualizado,.wr-v4__social-atualizado{text-align:left}.wr-v4__social-grade,.wr-v4__live-grade,.wr-v4__pilares,.wr-relatorio__criativos-grade{grid-template-columns:1fr}.wr-monitor__tabela{overflow-x:auto}.wr-monitor__linha{min-width:540px}.wr-trending{grid-column:1/-1;padding:15px}.wr-trending__item{grid-template-columns:32px minmax(0,1fr)}.wr-trending__metricas{grid-column:2}.wr-trending__tendencia{grid-column:2}.wr-trending__total{white-space:nowrap}.wr-trending__analise{grid-template-columns:1fr}.wr-trending__analise-desempenho{justify-items:start}.wr-trending__analise-desempenho .wr-trending__grafico{width:min(100%,220px)}}
   `;
   document.head.append(estilo);
 

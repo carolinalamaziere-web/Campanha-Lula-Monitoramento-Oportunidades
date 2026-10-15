@@ -1,8 +1,9 @@
-name: Atualiza Painel ao Vivo
+name: Agente Diário do War Room
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # 10:05 UTC = 07:05 em Brasília.
+    - cron: "5 10 * * *"
   workflow_dispatch:
 
 permissions:
@@ -27,9 +28,8 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Buscar dados e gerar roteiro
+      - name: Atualizar fontes auxiliares
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CONTENT_SOURCE: ${{ vars.CONTENT_SOURCE }}
           GOOGLE_SHEETS_ID: ${{ vars.GOOGLE_SHEETS_ID }}
           GOOGLE_SHEETS_RANGE: ${{ vars.GOOGLE_SHEETS_RANGE }}
@@ -39,18 +39,27 @@ jobs:
           SUPABASE_TABLE: ${{ vars.SUPABASE_TABLE }}
         run: node scripts/atualiza-dados.js
 
-      - name: Atualizar conteúdos da Meta Graph API
-        continue-on-error: true
+      - name: Coletar dados reais da Meta dos últimos 28 dias
         env:
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          META_REQUIRED: "true"
           META_IG_USER_ID: ${{ vars.META_IG_USER_ID }}
           META_FACEBOOK_PAGE_IDS: ${{ vars.META_FACEBOOK_PAGE_IDS }}
           META_INSTAGRAM_USERNAMES: ${{ vars.META_INSTAGRAM_USERNAMES }}
+          META_LULA_ACCOUNTS: ${{ vars.META_LULA_ACCOUNTS }}
+          META_BOLSONARO_ACCOUNTS: ${{ vars.META_BOLSONARO_ACCOUNTS }}
           META_GRAPH_API_VERSION: ${{ vars.META_GRAPH_API_VERSION }}
           META_GRAPH_FETCH_LIMIT: ${{ vars.META_GRAPH_FETCH_LIMIT }}
           META_GRAPH_TOP_LIMIT: ${{ vars.META_GRAPH_TOP_LIMIT }}
-          META_TRENDING_DAYS: ${{ vars.META_TRENDING_DAYS }}
+          META_TRENDING_DAYS: "28"
         run: node scripts/atualiza-meta-graph.js
+
+      - name: Gerar relatório e conteúdos com OpenAI
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_REPORT_MODEL: ${{ vars.OPENAI_REPORT_MODEL }}
+          REPORT_DAYS: "28"
+        run: node scripts/gera-relatorio-diario.js
 
       - name: Publicar dados atualizados
         id: publicar

@@ -1,7 +1,7 @@
 {
   "versao": 4,
   "atualizadoEm": "2026-10-15T00:40:50.411Z",
-  "atualizacaoAutomatica": "A cada 5 minutos pelo GitHub Actions",
+  "atualizacaoAutomatica": "Diariamente pelo agente GitHub Actions",
   "indicadores": [
     {
       "id": "ipca",

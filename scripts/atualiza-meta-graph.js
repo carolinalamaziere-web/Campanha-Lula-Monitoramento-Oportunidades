@@ -6,8 +6,11 @@ const arquivoDados = path.join(raiz, "dados.json");
 const versaoApi = normalizarVersao(process.env.META_GRAPH_API_VERSION || "v26.0");
 const limiteBusca = numeroInteiro(process.env.META_GRAPH_FETCH_LIMIT, 100, 1, 100);
 const limiteRanking = numeroInteiro(process.env.META_GRAPH_TOP_LIMIT, 240, 20, 1000);
-const janelaDias = numeroInteiro(process.env.META_TRENDING_DAYS, 7, 1, 90);
+const janelaDias = numeroInteiro(process.env.META_TRENDING_DAYS, 28, 1, 90);
 const token = String(process.env.META_ACCESS_TOKEN || "").trim();
+const metaObrigatoria = /^(1|true|sim)$/i.test(String(process.env.META_REQUIRED || ""));
+const contasLula = new Set(listaAmbiente("META_LULA_ACCOUNTS").map(normalizarIdentificador));
+const contasBolsonaro = new Set(listaAmbiente("META_BOLSONARO_ACCOUNTS").map(normalizarIdentificador));
 
 function numeroInteiro(valor, padrao, minimo, maximo) {
   const numero = Number.parseInt(valor, 10);
@@ -28,6 +31,27 @@ function listaAmbiente(nome) {
     .split(/[\n,;]/)
     .map((item) => item.trim())
     .filter(Boolean))];
+}
+
+function normalizarIdentificador(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/^@/, "")
+    .trim()
+    .toLowerCase();
+}
+
+function classificarCampo(perfil) {
+  const chaves = [perfil?.id, perfil?.username, perfil?.name]
+    .map(normalizarIdentificador)
+    .filter(Boolean);
+  if (chaves.some((chave) => contasBolsonaro.has(chave))) return "pro-bolsonaro";
+  if (chaves.some((chave) => contasLula.has(chave))) return "pro-lula";
+  const identidade = chaves.join(" ");
+  if (/\bbolsonaro\b/.test(identidade)) return "pro-bolsonaro";
+  if (/\blula\b/.test(identidade)) return "pro-lula";
+  return null;
 }
 
 function usuarioInstagram(valor) {
@@ -149,6 +173,7 @@ async function coletarFacebook(alvo) {
       contaId: String(perfil.id || alvo),
       contaNome: perfil.name || perfil.username || alvo,
       contaUsuario: perfil.username || null,
+      campoPolitico: classificarCampo(perfil),
       fotoContaUrl: urlSegura(perfil.picture?.data?.url),
       seguidores,
       legenda: post.message || "Publicação sem texto.",
@@ -221,6 +246,7 @@ async function coletarInstagram(usuario, igUserId) {
       contaId: String(perfil.id || nomeSeguro),
       contaNome: perfil.name || perfil.username || nomeSeguro,
       contaUsuario: perfil.username || nomeSeguro,
+      campoPolitico: classificarCampo(perfil),
       fotoContaUrl: urlSegura(perfil.profile_picture_url),
       seguidores,
       legenda: item.caption || "Publicação sem legenda.",
@@ -243,10 +269,12 @@ async function executar() {
   const igUserId = String(process.env.META_IG_USER_ID || "").trim();
 
   if (!token) {
+    if (metaObrigatoria) throw new Error("META_ACCESS_TOKEN não configurado.");
     console.log("META_ACCESS_TOKEN não configurado; coleta da Meta Graph API ignorada.");
     return;
   }
   if (!paginasFacebook.length && !contasInstagram.length) {
+    if (metaObrigatoria) throw new Error("Configure META_FACEBOOK_PAGE_IDS ou META_INSTAGRAM_USERNAMES.");
     console.log("Nenhuma fonte configurada em META_FACEBOOK_PAGE_IDS ou META_INSTAGRAM_USERNAMES.");
     return;
   }
@@ -293,8 +321,8 @@ async function executar() {
     .slice(0, limiteRanking)
     .map((item, indice) => ({ ...item, posicao: indice + 1 }));
 
-  if (!ranqueados.length && avisos.length) {
-    throw new Error(`Nenhum conteúdo foi coletado. ${avisos.join(" | ")}`);
+  if (!ranqueados.length && (avisos.length || metaObrigatoria)) {
+    throw new Error(`Nenhum conteúdo foi coletado.${avisos.length ? ` ${avisos.join(" | ")}` : ""}`);
   }
 
   const dados = JSON.parse(await fs.readFile(arquivoDados, "utf8"));
